@@ -10,9 +10,8 @@ def train_model():
    #first train 1 of the two models: spipgram or cbow
 
    # Skipgram model:
-   epochs=20 #500
-   # data/rockyou_sorted_preprocessed.txt
-   model = fasttext.train_unsupervised('data/rockyou_subset.txt', minCount=1, minn=2, epoch=epochs, model='skipgram')
+   epochs= 500
+   model = fasttext.train_unsupervised('data/rockyou_sorted_preprocessed.txt', minCount=1, minn=2, epoch=epochs, model='skipgram')
 
    print()
 
