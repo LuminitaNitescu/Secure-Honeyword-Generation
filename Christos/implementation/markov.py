@@ -1,2 +1,246 @@
+import random as rng
+import pickle
+import os
+from collections import defaultdict, deque
+import re
+import itertools
+from multiprocessing import Pool, Manager
+from functools import partial
+from util import *
+
+
+def process_password(i):
+            
+    chain  = defaultdict(list)
+    starts = []
+
+    if len(i) < 4:
+        starts.append(i)
+    else:
+        i += '\n'
+        starts.append(i[:4])
+
+        window = deque(i[:4], maxlen=4)
+        for ch in i[4:]:
+            chain[tuple(window)].append(ch)
+            window.append(ch) 
+    
+    return chain, starts
+
 class MarkovModel():
-	pass
+    
+    def __init__(self, path=None):
+        self.data = None
+        
+        if path:
+            with open(path, 'rb') as f:
+                model = pickle.load(f)
+            self.chain = model['chain']
+            self.starts = model['starts']
+        else:
+            self.starts = None
+            self.chain = None
+
+    def load_data(self, data):
+        self.data = data
+        
+        with Pool() as pool:
+            results = pool.map(process_password, self.data)
+            
+        self.chain  = defaultdict(list)
+        self.starts = []
+        for chain, starts in results:
+            self.starts.extend(starts)
+            for k, v in chain.items():
+                self.chain[k].extend(v)
+    
+        os.makedirs('./Christos/trained_models', exist_ok=True)
+        with open('./Christos/trained_models/markov.pickle', 'wb') as f:
+            pickle.dump({"starts": self.starts, "chain": self.chain}, f)
+     
+    def generate(self, user_data: UserData, k):
+        
+        res = []
+        while len(res) < k:
+                    
+            cur = rng.choice(self.starts)
+            hw_parts = []
+            hw_parts.extend(cur)
+            
+            queue = deque(cur, maxlen=4)
+            while len(hw_parts) < len(user_data.password) and queue:
+                nxt = rng.choice(self.chain[tuple(queue)])
+                if nxt == '\n':
+                    break
+                
+                queue.extend(nxt)
+                hw_parts.extend(nxt)
+            hw = "".join(hw_parts)
+            
+            if len(hw) == len(user_data.password) and hw not in res and hw != user_data.password:
+                res.append(hw)
+                
+        return res
+
+
+def process_password_targeted(i, chars):
+            
+            chain  = defaultdict(list)
+            starts = []
+            
+            pw = i[0]
+            fn = i[3]
+            ln = i[4]
+            bd = i[5][0:2]
+            bm = i[5][2:4]
+            by = i[5][4:8]
+            un = i[2]
+            em = i[1].split("@")[0]
+            
+            tags = dict()
+            tags[chars[0]] = f"{fn}{ln}"
+            tags[chars[1]] = f"{fn[0]}{ln[0]}"
+            tags[chars[2]] = ln
+            tags[chars[3]] = fn
+            tags[chars[4]] = f"{fn[0]}{ln}"
+            tags[chars[5]] = f"{ln}{fn[0]}"
+            tags[chars[6]] = f"{ln[0].upper()}{ln[1:]}"
+            tags[chars[7]] = f"{by}{bm}{bd}"
+            tags[chars[8]] = f"{bm}{bd}{by}"
+            tags[chars[9]] = f"{bd}{bm}{by}"
+            tags[chars[10]] = f"{bd}{bm}"
+            tags[chars[11]] = by
+            tags[chars[12]] = f"{by}{bm}"
+            tags[chars[13]] = f"{bm}{by}"
+            tags[chars[14]] = f"{by[2:]}{bm}{bd}"
+            tags[chars[15]] = f"{bm}{bd}{by[2:]}"
+            tags[chars[16]] = f"{bd}{bm}{by[2:]}"
+            tags[chars[17]] = un
+            tags[chars[18]] = em
+            regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+            if regex:
+                tags[chars[19]] = regex.group(1)
+                tags[chars[20]] = regex.group(2)
+            regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+            if regex:
+                tags[chars[21]] = regex.group(1)
+                tags[chars[22]] = regex.group(2)
+                
+            pw = tokenize_password(pw, tags)
+            
+            if len(pw) < 4:
+                starts.append(pw)
+            else:
+                pw += '\n'
+                starts.append(pw[:4])
+
+                window = deque(pw[:4], maxlen=4)
+                for ch in pw[4:]:
+                    chain[tuple(window)].append(ch)
+                    window.append(ch)       
+            
+            return chain, starts 
+
+class TargetedMarkovModel():
+    
+    def __init__(self, path=None):
+        self.data = None
+        
+        if path:
+            with open(path, 'rb') as f:
+                model = pickle.load(f)
+            self.chain = model['chain']
+            self.starts = model['starts']
+        else:
+            self.starts = None
+            self.chain = None
+        
+        self.chars = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
+                                        '\x08', '\x0b', '\x0c', '\x0e', '\x0f', '\x10', '\x11', '\x12', 
+                                        '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19']
+        
+    def load_data(self, data):
+        self.data = data 
+        
+        
+        with Manager() as manager:
+            shared_list = manager.list(self.chars)
+            fn = partial(process_password, shared_list)
+            with Pool() as pool:
+                results = pool.map(fn, self.data)
+            
+        self.chain  = defaultdict(list)
+        self.starts = []
+        for chain, starts in results:
+            self.starts.extend(starts)
+            for k, v in chain.items():
+                self.chain[k].extend(v)
+    
+        os.makedirs('./Christos/trained_models', exist_ok=True)
+        with open('./Christos/trained_models/targeted_markov.pickle', 'wb') as f:
+            pickle.dump({"starts": self.starts, "chain": self.chain}, f)
+     
+    def generate(self, user_data: UserData, k):
+        
+        fn = user_data.first_name
+        ln = user_data.last_name
+        bd = user_data.birthday[0:2]
+        bm = user_data.birthday[2:4]
+        by = user_data.birthday[4:8]
+        un = user_data.username
+        em = user_data.email.split("@")[0]
+        
+        tags = dict()
+        tags[self.chars[0]] = f"{fn}{ln}"
+        tags[self.chars[1]] = f"{fn[0]}{ln[0]}"
+        tags[self.chars[2]] = ln
+        tags[self.chars[3]] = fn
+        tags[self.chars[4]] = f"{fn[0]}{ln}"
+        tags[self.chars[5]] = f"{ln}{fn[0]}"
+        tags[self.chars[6]] = f"{ln[0].upper()}{ln[1:]}"
+        tags[self.chars[7]] = f"{by}{bm}{bd}"
+        tags[self.chars[8]] = f"{bm}{bd}{by}"
+        tags[self.chars[9]] = f"{bd}{bm}{by}"
+        tags[self.chars[10]] = f"{bd}{bm}"
+        tags[self.chars[11]] = by
+        tags[self.chars[12]] = f"{by}{bm}"
+        tags[self.chars[13]] = f"{bm}{by}"
+        tags[self.chars[14]] = f"{by[2:]}{bm}{bd}"
+        tags[self.chars[15]] = f"{bm}{bd}{by[2:]}"
+        tags[self.chars[16]] = f"{bd}{bm}{by[2:]}"
+        tags[self.chars[17]] = un
+        tags[self.chars[18]] = em
+        regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+        if regex:
+            tags[self.chars[19]] = regex.group(1)
+            tags[self.chars[20]] = regex.group(2)
+        regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+        if regex:
+            tags[self.chars[21]] = regex.group(1)
+            tags[self.chars[22]] = regex.group(2)
+        
+        res = []
+        while len(res) < k:
+            
+            cur = rng.choice(self.starts)
+            hw_parts = []
+            for i in cur:
+                hw_parts.extend(tags.get(i, i))
+            
+            queue = deque(cur)
+            while len(hw_parts) < len(user_data.password) and queue:
+                nxt = rng.choice(self.chain[tuple(itertools.islice(queue, 4))])
+                if nxt == '\n':
+                    break
+                
+                queue.extend(nxt)
+                queue.popleft()
+                
+                nxt = tags.get(nxt, nxt)
+                hw_parts.extend(nxt)
+            hw = "".join(hw_parts)
+            
+            if len(hw) == len(user_data.password) and hw not in res and hw != user_data.password:
+                res.append(hw)
+                
+        return res

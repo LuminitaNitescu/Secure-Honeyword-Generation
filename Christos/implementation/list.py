@@ -1,19 +1,7 @@
 import random as rng
 import ahocorasick
 import re
-
-
-class UserData():
-    
-    def __init__(self, password: str, email=None, username=None, first_name=None, last_name=None, birthday=None):
-        self.data = None
-        
-        self.password = password
-        self.email = email
-        self.username = username
-        self.first_name = first_name
-        self.last_name = last_name
-        self.birthday = birthday
+from util import *
 
 
 class ListModel():
@@ -46,22 +34,22 @@ class TargetedListModel():
             
     def generate(self, user_data: UserData, k):
         
-        fn_2 = user_data.first_name or ""
-        ln_2 = user_data.last_name or ""
-        bd_2 = user_data.birthday[0:2] if user_data.birthday else ""
-        bm_2 = user_data.birthday[2:4] if user_data.birthday else ""
-        by_2 = user_data.birthday[4:8] if user_data.birthday else ""
-        un_2 = user_data.username or ""
-        em_2 = user_data.email.split("@")[0] if user_data.email else ""
+        fn_2 = user_data.first_name
+        ln_2 = user_data.last_name
+        bd_2 = user_data.birthday[0:2]
+        bm_2 = user_data.birthday[2:4]
+        by_2 = user_data.birthday[4:8]
+        un_2 = user_data.username
+        em_2 = user_data.email.split("@")[0]
         
         values = [
             f"{fn_2}{ln_2}",
-            f"{fn_2[0] if fn_2 else ''}{ln_2[0] if ln_2 else ''}",
+            f"{fn_2[0]}{ln_2[0]}",
             ln_2,
             fn_2,
-            f"{fn_2[0] if fn_2 else ''}{ln_2}",
-            f"{ln_2}{fn_2[0] if fn_2 else ''}",
-            f"{ln_2[0].upper() if ln_2 else ''}{ln_2[1:] if ln_2 else ''}",
+            f"{fn_2[0]}{ln_2}",
+            f"{ln_2}{fn_2[0]}",
+            f"{ln_2[0].upper()}{ln_2[1:]}",
 
             f"{by_2}{bm_2}{bd_2}",
             f"{bm_2}{bd_2}{by_2}",
@@ -107,7 +95,7 @@ class TargetedListModel():
                 bm_1 = hw[5][2:4]
                 by_1 = hw[5][4:8]
                 un_1 = hw[2]
-                em_1 = hw[1].split("@")[0] if hw[1] else ""
+                em_1 = hw[1].split("@")[0]
                 
                 pii = {
                     values[0]: f"{fn_1}{ln_1}",
@@ -143,33 +131,7 @@ class TargetedListModel():
                 if regex and em_2_1 is not None:
                     pii[em_2_1] = regex.group(1)
                     pii[em_2_2] = regex.group(2)
-                    
-            
-                auto = ahocorasick.Automaton()
-                for key, value in pii.items():
-                    if value and len(value) >= 2:
-                        auto.add_word(value, (key, value))
-                auto.make_automaton()    
-    
-                matches = []
-                for end_idx, (key, value) in auto.iter(hw[0]):
-                    start_idx = end_idx - len(value) + 1
-                    matches.append((start_idx, end_idx, key, value))
-                
-                if not matches:
-                    res.append(hw[0])
-                
-                res_parts = []
-                matches.sort(key=lambda x: (x[0], -len(x[3])))
-                last_start = -1
-                for start, end, key, value in matches:
-                    if start > last_start:
-                        if start != last_start + 1:
-                            res_parts.append(hw[0][last_start + 1:start])
-                        res_parts.append(key)
-                        last_start = end
-                res_parts.append(hw[0][last_start + 1:len(hw[0])])
 
-                res.append("".join(res_parts))
+                res.append(tokenize_password(hw[0], pii))
         
         return res
