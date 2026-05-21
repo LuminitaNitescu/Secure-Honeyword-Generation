@@ -1,5 +1,4 @@
 import random as rng
-import ahocorasick
 import re
 from util import *
 
