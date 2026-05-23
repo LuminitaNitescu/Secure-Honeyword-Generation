@@ -1,3 +1,4 @@
 .conda/
 *.pyc
 /Christos/trained_models
+/Christos/implementation/legacy_pcfg_master/python_pcfg_cracker_version3/Rules
