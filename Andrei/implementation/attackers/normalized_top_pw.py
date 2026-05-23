@@ -6,7 +6,7 @@ from math import inf
 from typing import Dict, Iterable, List, Optional, Tuple
 
 
-ProbabilityMap = Dict[str, float]
+CountMap = Dict[str, int]
 
 
 @dataclass
@@ -40,8 +40,8 @@ class AttackStats:
 
 class NormalizedTopPWModel:
 	def __init__(self, smoothing: str = "plus_one") -> None:
-		self.pd: ProbabilityMap = {}
-		self.total_count = 0
+		self.counts: CountMap = {}
+		self.dataset_size = 0
 		self.smoothing = smoothing
 
 	def train(self, leaked_passwords: Iterable[str]) -> None:
@@ -53,21 +53,19 @@ class NormalizedTopPWModel:
 				continue
 			counts[password] = counts.get(password, 0) + 1
 			total += 1
-		self.total_count = total
-		if total == 0:
-			self.pd = {}
-			return
-		self.pd = {password: count / total for password, count in counts.items()}
+		self.dataset_size = total
+		self.counts = counts
 
 	def train_from_file(self, path: str) -> None:
 		with open(path, "r", encoding="utf-8") as handle:
 			self.train(handle)
 
 	def _base_prob(self, word: str) -> float:
-		if word in self.pd:
-			return self.pd[word]
-		if self.smoothing == "plus_one" and self.total_count > 0:
-			return 1.0 / (self.total_count + 1)
+		count = self.counts.get(word, 0)
+		if count > 0 and self.dataset_size > 0:
+			return count / self.dataset_size
+		if self.smoothing == "plus_one":
+			return 1.0 / (self.dataset_size + 1)
 		return 0.0
 
 	def _get_sweetword(self, entry: SweetwordList) -> Tuple[float, Optional[str]]:
