@@ -8,13 +8,12 @@ class PCFGModel():
         self.data = None
         self.rule_name = None
 
-    def load_data(self, data=None, rule_name=None):
+    def load_data(self, data=None, rule_name="Default"):
         
         if data:
             train(data)
-        else:
-            self.rule_name = rule_name
+        self.rule_name = rule_name
      
     def generate(self, k):
         
-        return self.generate(k)
+        return generate(k)

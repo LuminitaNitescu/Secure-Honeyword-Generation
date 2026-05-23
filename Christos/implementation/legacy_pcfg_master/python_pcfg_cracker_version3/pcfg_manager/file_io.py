@@ -319,7 +319,10 @@ def load_grammar(rule_directory, grammar, config_details = {}):
     try:
         config.readfp(open(os.path.join(rule_directory,"config.ini")))
         ##--Find the encoding for the config file--##
-        encoding = config.get('TRAINING_DATASET_DETAILS','encoding')
+        try:
+            encoding = config.get('TRAINING_DATASET_DETAILS','encoding')
+        except:
+            encoding = 'utf-8'
         config_details['version'] = config.get('TRAINING_PROGRAM_DETAILS','version')
         
     except IOError as msg:
