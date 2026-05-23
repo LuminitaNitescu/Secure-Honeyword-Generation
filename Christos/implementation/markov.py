@@ -10,6 +10,8 @@ from util import *
 
 
 def process_password(i):
+    
+    i = i[0]
             
     chain  = defaultdict(list)
     starts = []
