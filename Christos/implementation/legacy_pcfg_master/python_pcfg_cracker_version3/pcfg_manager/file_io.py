@@ -18,6 +18,7 @@ from itertools import groupby
 #Used for debugging
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.core_grammar import print_grammar
 
+special = ['N', 'B', 'E', 'U']
 
 #########################################################################################
 # Extracts the probabilities from tab seperated input values
@@ -108,7 +109,10 @@ def parse_base_structure(unformated_base,grammar_mapping, pos = []):
         size = working_list[index*2 + 1]
         #--look up the position
         try:
-            pos.append(grammar_mapping[value][size])
+            if value in special:
+                pos.append(grammar_mapping[value][''])
+            else:
+                pos.append(grammar_mapping[value][size])
         except KeyError as msg:
             print("Error occured parsing the links in the base structure: " + str(msg),file=sys.stderr)
             return False

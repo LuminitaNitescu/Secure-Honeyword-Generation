@@ -47,6 +47,8 @@ from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.file_io import
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.core_grammar import PcfgClass
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.markov_cracker import MarkovCracker
 
+from util import UserData
+
       
 ####################################################
 # Simply parses the command line
@@ -228,7 +230,7 @@ if __name__ == "__main__":
     main()
 
 
-def generate(k, rule_name = "Default"):
+def generate(k, password, rule_name = "Default", pii: dict = None):
     
     ##--Information about this program--##
     management_vars = {
@@ -296,15 +298,17 @@ def generate(k, rule_name = "Default"):
         try:
             ##--Perform a weighted random walk of the grammar to get the parse tree
             parse_tree = pcfg.random_grammar_walk(start_index)
-            honeyword = pcfg.gen_random_terminal(parse_tree)
-            honeywords.append(honeyword)
+            honeyword = pcfg.gen_random_terminal(parse_tree, pii)
+            
+            if honeyword != "" and len(honeyword) == len(password) and honeyword not in honeywords and honeyword != password:
+                honeywords.append(honeyword)
 
-            ##--Print the results
-            ##--Note, this may throw an exception if the terminal it is printing to
-            ##--doesn't support the character type. For example if a Cyrillic character
-            ##--is printed on an English language Windows Command shell
-            print(str(honeyword))
-            honeywords_left = honeywords_left - 1
+                ##--Print the results
+                ##--Note, this may throw an exception if the terminal it is printing to
+                ##--doesn't support the character type. For example if a Cyrillic character
+                ##--is printed on an English language Windows Command shell
+                print(str(honeyword))
+                honeywords_left = honeywords_left - 1
             
         except Exception as msg:
             errors_occured += 1

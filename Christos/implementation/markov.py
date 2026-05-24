@@ -167,7 +167,7 @@ class TargetedMarkovModel():
         
         with Manager() as manager:
             shared_list = manager.list(self.chars)
-            fn = partial(process_password, shared_list)
+            fn = partial(process_password_targeted, shared_list)
             with Pool() as pool:
                 results = pool.map(fn, self.data)
             

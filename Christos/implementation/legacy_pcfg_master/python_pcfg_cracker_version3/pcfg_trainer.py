@@ -18,6 +18,7 @@ import math #Used for the MeasurementStatus bar
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.ret_types import RetType
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.trainer_file_io import is_jtr_pot, read_input_passwords, detect_file_encoding, make_rule_dirs, write_config
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.training_data import TrainingData
+from util import UserData
 
 
 ##-- The minimum number of passwords to train on --##
@@ -386,7 +387,7 @@ def train(data, smoothing = 0.01, coverage = 1.0, rule_name = "Default"):
     ##--Now parse every password in the training set --##
     for password in data:
         
-        ret_value = training_results.parse(password[0])
+        ret_value = training_results.parse(password)
         if ret_value != RetType.STATUS_OK:
             ascii_fail()
             print("Exiting...")

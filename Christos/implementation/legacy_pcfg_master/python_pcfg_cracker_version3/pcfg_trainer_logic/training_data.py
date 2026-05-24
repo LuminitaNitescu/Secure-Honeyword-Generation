@@ -14,6 +14,9 @@ import os
 import codecs
 import json
 
+import ahocorasick
+import re
+
 ##--User Defined Imports---##
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.ret_types import RetType
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.password_parser import PasswordParser
@@ -33,6 +36,10 @@ class TrainingData:
         ##--Brute force data
         self.markov = Markov()
         
+        
+        self.tags = dict()
+        
+        
         ######################################################
         ##Init Base Structures
         ######################################################
@@ -45,6 +52,10 @@ class TrainingData:
             'Function':'Transparent',
             'Is_terminal':'False',
             'Replacements': json.dumps([
+                {'Transition_id':'N','Config_id':'BASE_N'},
+                {'Transition_id':'B','Config_id':'BASE_B'},
+                {'Transition_id':'U','Config_id':'BASE_U'},
+                {'Transition_id':'E','Config_id':'BASE_E'},
                 {'Transition_id':'A','Config_id':'BASE_A'},
                 {'Transition_id':'D','Config_id':'BASE_D'},
                 {'Transition_id':'O','Config_id':'BASE_O'},
@@ -55,6 +66,53 @@ class TrainingData:
         }     
         self.base_structure = DataList(type= ListType.FLAT, config_name= 'START', config_data = config)
         self.master_data_list.append(self.base_structure)
+        
+        
+        config = {
+            'Name':'N',
+            'Comments':'Name PII tags.',
+            'Directory':'Name',
+            'Filenames' : '.txt',
+            'Inject_type':'Copy',
+            'Function':'Copy',
+            'Is_terminal':'True', 
+        }     
+        self.name_structure = DataList(type= ListType.FLAT, config_name= 'BASE_N', config_data = config)
+        self.master_data_list.append(self.name_structure)
+        config = {
+            'Name':'B',
+            'Comments':'Birthday PII tags.',
+            'Directory':'Birthday',
+            'Filenames' : '.txt',
+            'Inject_type':'Copy',
+            'Function':'Copy',
+            'Is_terminal':'True', 
+        }     
+        self.birthday_structure = DataList(type= ListType.FLAT, config_name= 'BASE_B', config_data = config)
+        self.master_data_list.append(self.birthday_structure)
+        config = {
+            'Name':'U',
+            'Comments':'Username PII tags.',
+            'Directory':'Username',
+            'Filenames' : '.txt',
+            'Inject_type':'Copy',
+            'Function':'Copy',
+            'Is_terminal':'True', 
+        }     
+        self.username_structure = DataList(type= ListType.FLAT, config_name= 'BASE_U', config_data = config)
+        self.master_data_list.append(self.username_structure)
+        config = {
+            'Name':'E',
+            'Comments':'Email PII tags.',
+            'Directory':'Email',
+            'Filenames' : '.txt',
+            'Inject_type':'Copy',
+            'Function':'Copy',
+            'Is_terminal':'True', 
+        }     
+        self.email_structure = DataList(type= ListType.FLAT, config_name= 'BASE_E', config_data = config)
+        self.master_data_list.append(self.email_structure)
+        
         
         ########################################################
         ##Init Alpha structures
@@ -263,7 +321,7 @@ class TrainingData:
     def parse(self, input_password):
         
         ##-Check to see if the password is a valid password to parse--##
-        ret_value = self.check_valid(input_password)
+        ret_value = self.check_valid(input_password[0])
         ##-If the password isn't valid for the training data
         if ret_value != RetType.IS_TRUE:
             self.num_rejected_passwords = self.num_rejected_passwords + 1
@@ -277,12 +335,105 @@ class TrainingData:
         self.valid_passwords = self.valid_passwords + 1
             
         ##-Initialize the PasswordParser for this particular password
-        cur_pass = PasswordParser(input_password)
+        cur_pass = PasswordParser(input_password[0])
         
         #################################################################
         ##--Save the brute force (MARKOV) data for this password
         #################################################################
-        self.markov.parse_password(input_password)
+        self.markov.parse_password(input_password[0])
+        
+        if len(input_password) > 1:
+            items_name = []
+            items_birthday = []
+            items_username = []
+            items_email = []
+            processed_mask = []
+
+            fn = input_password[3]
+            ln = input_password[4]
+            bd = input_password[5][0:2]
+            bm = input_password[5][2:4]
+            by = input_password[5][4:8]
+            un = input_password[2]
+            em = input_password[1].split("@")[0]
+        
+            self.tags.clear()
+            self.tags["N1"] = f"{fn}{ln}"
+            self.tags["N2"] = f"{fn[0]}{ln[0]}"
+            self.tags["N3"] = ln
+            self.tags["N4"] = fn
+            self.tags["N5"] = f"{fn[0]}{ln}"
+            self.tags["N6"] = f"{ln}{fn[0]}"
+            self.tags["N7"] = f"{ln[0].upper()}{ln[1:]}"
+            self.tags["B1"] = f"{by}{bm}{bd}"
+            self.tags["B2"] = f"{bm}{bd}{by}"
+            self.tags["B3"] = f"{bd}{bm}{by}"
+            self.tags["B4"] = f"{bd}{bm}"
+            self.tags["B5"] = by
+            self.tags["B6"] = f"{by}{bm}"
+            self.tags["B7"] = f"{bm}{by}"
+            self.tags["B8"] = f"{by[2:]}{bm}{bd}"
+            self.tags["B9"] = f"{bm}{bd}{by[2:]}"
+            self.tags["B10"] = f"{bd}{bm}{by[2:]}"
+            self.tags["U1"] = un
+            self.tags["E1"] = em
+            regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+            if regex:
+                self.tags["U2"] = regex.group(1)
+                self.tags["U3"] = regex.group(2)
+            regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+            if regex:
+                self.tags["E2"] = regex.group(1)
+                self.tags["E3"] = regex.group(2)
+                
+            auto = ahocorasick.Automaton()
+            for key, value in self.tags.items():
+                if value and len(value) >= 2:
+                    auto.add_word(value, (key, value))
+            auto.make_automaton()
+
+            matches = []
+            for end_idx, (key, value) in auto.iter(input_password[0]):
+                start_idx = end_idx - len(value) + 1
+                matches.append((start_idx, end_idx, key, value))
+                
+            matches.sort(key=lambda x: (x[0], -len(x[3])))
+            last_start = -1
+            for start, end, key, value in matches:
+                if start > last_start:
+                    if start != last_start + 1:
+                        processed_mask.append((input_password[0][last_start + 1:start], None))
+                    else:
+                        processed_mask.append((value, key))
+
+                    if key[0] == 'N':
+                        items_name.append(key)
+                    elif key[0] == 'B':
+                        items_birthday.append(key)
+                    elif key[0] == 'U':
+                        items_username.append(key)
+                    else:
+                        items_email.append(key)
+                    last_start = end
+            
+            ret_value = self.name_structure.insert_list(items_name)
+            if ret_value != RetType.STATUS_OK:
+                print("Error parsing name PII combos")
+                return ret_value
+            ret_value = self.birthday_structure.insert_list(items_birthday)
+            if ret_value != RetType.STATUS_OK:
+                print("Error parsing birthday PII combos")
+                return ret_value
+            ret_value = self.username_structure.insert_list(items_username)
+            if ret_value != RetType.STATUS_OK:
+                print("Error parsing username PII combos")
+                return ret_value
+            ret_value = self.email_structure.insert_list(items_email)
+            if ret_value != RetType.STATUS_OK:
+                print("Error parsing email PII combos")
+                return ret_value
+
+        cur_pass.processed_mask = processed_mask.copy()
 
         #################################################################
         ##--Parse out all the keyboard combinations

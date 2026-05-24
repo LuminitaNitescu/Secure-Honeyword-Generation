@@ -303,6 +303,13 @@ class GuessGeneration:
         ##--The Markov grammar
         self.markov_cracker = markov_cracker
         
+        self.tags = [
+            "N1", "N2", "N3", "N4", "N5", "N6", "N7",
+            "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10",
+            "U1", "U2", "U3", 
+            "E1", "E2", "E3"
+        ]
+        
         ##--Initilaize the terminal structures
         self.__initialize(pre_terminal, 0)
                 
@@ -368,7 +375,7 @@ class GuessGeneration:
     # I expect this mostly to be used in honeywords
     # Returns None if there are no possible guesses to generate
     ################################################################################################################
-    def get_random_guess(self):
+    def get_random_guess(self, pii: dict = None):
         ##--Initialize the guess with the first terminal--##
         ##--Yes it's added overhead since we just throw the guess away but it initializes the structure so it avoids having
         ##--to write additional code
@@ -379,5 +386,11 @@ class GuessGeneration:
         for item in self.structures: 
             if not item.get_random(self.guess):
                 return None
+            
+        for i in range(0, len(self.guess)):
+            if self.guess[i] in self.tags:
+                self.guess[i] = pii.get(self.guess[i], "")
+            else:
+                self.guess[i] = pii.get(self.guess[i], self.guess[i])
             
         return ''.join(self.guess)
