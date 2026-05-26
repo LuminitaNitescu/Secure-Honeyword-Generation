@@ -51,51 +51,78 @@ def gen_synthetic_data():
                 
     print(f"Finished! Saved to {filename}")
 
+# def main() -> None:
+    
+#     # query = UserData("big_chungusBBBBBBBBBBBBBBB", "chAngAs22@gmail.com", "chEngEs11", "Big", "Chungus", "03052002")
+#     # model = TargetedListModel()
+ 
+#     # data = [
+#     #     ["johnnnAA456Porkson1997BB?C", "johnn456@gmail.com", "porksonn999", "john", "porkson", "11121997"],
+#     # ]
+    
+#     query = UserData("big_chungusB", "chAngAs22@gmail.com", "chEngEs11", "Big", "Chungus", "03052002")
+#     # model = MarkovModel("./Christos/trained_models/markov.pickle")
+#     model = TargetedPCFGModel()
+    
+#     # with open("C:/Users/ctamv/Documents/CS/CS4710/BreachCompilation/preprocessed_data/train_data.pickle", 'rb') as f:
+#     #     data = pickle.load(f)
+#     # data = list(itertools.chain.from_iterable(data))
+#     # data = [[x] for x in data][:1000]
+    
+#     # data = []
+#     # with open("synthetic.csv", mode="r", newline="", encoding="utf-8") as file:
+        
+#     #     reader = csv.reader(file)
+#     #     header = next(reader)
+
+#     #     row_count = 0
+#     #     for row in reader:
+#     #         data.append(row)
+#     #         row_count += 1
+            
+#     #         if row_count % 10_000 == 0:
+#     #             print(f"Progress: Read {row_count:,} rows...")
+    
+#     # query = UserData("big_chungusBBBBBBBBBBBBBBB", "chAngAs22@gmail.com", "chEngEs11", "Big", "Chungus", "03052002")
+#     # model = TargetedMarkovModel()
+    
+#     # data = [
+#     #     ["johnnnAAAA456Porkson1997?C", "johnn456@gmail.com", "porksonn999", "john", "porkson", "11121997"],
+#     #     ["22chungasAAAA2000!chun", "chunchun22@gmail.com", "chungas", "chunga", "Chungsten", "11122000"]
+#     # ]
+
+#     model.load_data(rule_name="Targeted")
+#     res = model.generate(10, query)
+    
+#     aa = 0
+
 def main() -> None:
     
-    # query = UserData("big_chungusBBBBBBBBBBBBBBB", "chAngAs22@gmail.com", "chEngEs11", "Big", "Chungus", "03052002")
-    # model = TargetedListModel()
- 
-    # data = [
-    #     ["johnnnAA456Porkson1997BB?C", "johnn456@gmail.com", "porksonn999", "john", "porkson", "11121997"],
-    # ]
+    passwords = []
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
+        for line in f:
+            password = line.strip()
+            if not password:
+                continue
+            passwords.append(password)
     
-    query = UserData("big_chungusB", "chAngAs22@gmail.com", "chEngEs11", "Big", "Chungus", "03052002")
-    # model = MarkovModel("./Christos/trained_models/markov.pickle")
-    model = TargetedPCFGModel()
-    
-    # with open("C:/Users/ctamv/Documents/CS/CS4710/BreachCompilation/preprocessed_data/train_data.pickle", 'rb') as f:
-    #     data = pickle.load(f)
-    # data = list(itertools.chain.from_iterable(data))
-    # data = [[x] for x in data][:1000]
-    
-    # data = []
-    # with open("synthetic.csv", mode="r", newline="", encoding="utf-8") as file:
-        
-    #     reader = csv.reader(file)
-    #     header = next(reader)
+    all_indices = list(range(len(passwords)))
+    random.shuffle(all_indices)
+    mid = len(passwords) // 2
 
-    #     row_count = 0
-    #     for row in reader:
-    #         data.append(row)
-    #         row_count += 1
+    train_indices = sorted(all_indices[:mid])
+    test_indices = sorted(all_indices[mid:])
+
+    training = [passwords[i] for i in train_indices]
+    test = [passwords[i] for i in test_indices]
+    
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt", mode="w", encoding="utf-8") as f:
+        for item in training:
+            f.write(f"{item}\n")
             
-    #         if row_count % 10_000 == 0:
-    #             print(f"Progress: Read {row_count:,} rows...")
-    
-    # query = UserData("big_chungusBBBBBBBBBBBBBBB", "chAngAs22@gmail.com", "chEngEs11", "Big", "Chungus", "03052002")
-    # model = TargetedMarkovModel()
-    
-    # data = [
-    #     ["johnnnAAAA456Porkson1997?C", "johnn456@gmail.com", "porksonn999", "john", "porkson", "11121997"],
-    #     ["22chungasAAAA2000!chun", "chunchun22@gmail.com", "chungas", "chunga", "Chungsten", "11122000"]
-    # ]
-
-    model.load_data(rule_name="Targeted")
-    res = model.generate(10, query)
-    
-    aa = 0
-
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", mode="w", encoding="utf-8") as f:
+        for item in test:
+            f.write(f"{item}\n")
 
 if __name__ == "__main__":
     main()

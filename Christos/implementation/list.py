@@ -15,7 +15,7 @@ class ListModel():
         res = []
         while len(res) < k:
             idx = rng.sample(range(len(self.data)), 1)
-            hw = self.data[idx[0]]
+            hw = self.data[idx[0]][0]
             
             if hw != user_data.password and len(hw) == len(user_data.password):
                 res.append(hw)
