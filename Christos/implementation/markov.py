@@ -18,6 +18,7 @@ def process_password(i):
 
     if len(i) < 4:
         starts.append(i)
+        chain[tuple(i)].append('\n')
     else:
         i += '\n'
         starts.append(i[:4])
@@ -63,8 +64,7 @@ class MarkovModel():
     def generate(self, user_data: UserData, k):
         
         res = []
-        while len(res) < k:
-                    
+        while len(res) < k:         
             cur = rng.choice(self.starts)
             hw_parts = []
             hw_parts.extend(cur)

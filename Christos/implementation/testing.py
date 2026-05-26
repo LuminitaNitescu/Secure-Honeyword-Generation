@@ -35,7 +35,8 @@ def _generate_single_sweetword_list(args) -> SweetwordList:
     row_seed = base_seed + idx
     worker_rng = random.Random(row_seed)
 
-    sweetwords = model.generate(UserData(password=password), k - 1)
+    # sweetwords = model.generate(UserData(password=password), k - 1)
+    sweetwords = model.generate(k - 1)
     sweetwords.append(password)
     worker_rng.shuffle(sweetwords)
     
@@ -82,14 +83,20 @@ def main() -> None:
             if not password:
                 continue
             data_train.append([password])
-    model = ListModel()
-    model.load_data(data=data_train)
+    model = PCFGModel()
+    model.load_data(rule_name="RockYou")
+    print("Training done.")
+    
+    # 3. Train attacker model
+    attacker = NormalizedTopPWModel()
+    attacker.train_from_file("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt")
     
     rng = random.Random(seed)
     sweetword_lists = []
     for idx, password in enumerate(passwords):
 
-        sweetwords = model.generate(UserData(password=password), k-1)
+        # sweetwords = model.generate(UserData(password=password), k-1)
+        sweetwords = model.generate(password=password, k=k-1)
         sweetwords.append(password)
         rng.shuffle(sweetwords)
         sweetword_lists.append(
@@ -107,10 +114,6 @@ def main() -> None:
         
     # with ProcessPoolExecutor() as executor:
     #     sweetword_lists = list(executor.map(_generate_single_sweetword_list, tasks))
-
-    # 3. Train attacker model
-    attacker = NormalizedTopPWModel()
-    attacker.train_from_file("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt")
 
     # 4. Run attack simulation using list clones
     attack_lists = clone_sweetword_lists(sweetword_lists)
@@ -131,7 +134,7 @@ def main() -> None:
         attack_stats=asdict(attack_stats),
     )
     
-    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\list_results.json")
+    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\pcfg_results.json")
 
     print(json.dumps(asdict(stats), indent=2))
 

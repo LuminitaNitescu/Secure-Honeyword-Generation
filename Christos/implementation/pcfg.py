@@ -17,9 +17,9 @@ class PCFGModel():
             train(data=data, rule_name=rule_name)
         self.rule_name = rule_name
      
-    def generate(self, k):
+    def generate(self, password, k):
         
-        return generate(k=k, rule_name=self.rule_name)
+        return generate(k=k, password=password, rule_name=self.rule_name)
     
 class TargetedPCFGModel():
     

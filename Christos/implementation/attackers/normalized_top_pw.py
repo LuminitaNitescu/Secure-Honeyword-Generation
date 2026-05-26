@@ -51,7 +51,7 @@ class NormalizedTopPWModel:
 			password = password.strip()
 			if not password:
 				continue
-			counts[password] = counts.get(password, 0) + 1
+			counts[password] = counts.get(password, 0)
 			total += 1
 		self.dataset_size = total
 		self.counts = counts

@@ -342,98 +342,98 @@ class TrainingData:
         #################################################################
         self.markov.parse_password(input_password[0])
         
-        if len(input_password) > 1:
-            items_name = []
-            items_birthday = []
-            items_username = []
-            items_email = []
-            processed_mask = []
+        # if len(input_password) > 1:
+        #     items_name = []
+        #     items_birthday = []
+        #     items_username = []
+        #     items_email = []
+        #     processed_mask = []
 
-            fn = input_password[3]
-            ln = input_password[4]
-            bd = input_password[5][0:2]
-            bm = input_password[5][2:4]
-            by = input_password[5][4:8]
-            un = input_password[2]
-            em = input_password[1].split("@")[0]
+        #     fn = input_password[3]
+        #     ln = input_password[4]
+        #     bd = input_password[5][0:2]
+        #     bm = input_password[5][2:4]
+        #     by = input_password[5][4:8]
+        #     un = input_password[2]
+        #     em = input_password[1].split("@")[0]
         
-            self.tags.clear()
-            self.tags["N1"] = f"{fn}{ln}"
-            self.tags["N2"] = f"{fn[0]}{ln[0]}"
-            self.tags["N3"] = ln
-            self.tags["N4"] = fn
-            self.tags["N5"] = f"{fn[0]}{ln}"
-            self.tags["N6"] = f"{ln}{fn[0]}"
-            self.tags["N7"] = f"{ln[0].upper()}{ln[1:]}"
-            self.tags["B1"] = f"{by}{bm}{bd}"
-            self.tags["B2"] = f"{bm}{bd}{by}"
-            self.tags["B3"] = f"{bd}{bm}{by}"
-            self.tags["B4"] = f"{bd}{bm}"
-            self.tags["B5"] = by
-            self.tags["B6"] = f"{by}{bm}"
-            self.tags["B7"] = f"{bm}{by}"
-            self.tags["B8"] = f"{by[2:]}{bm}{bd}"
-            self.tags["B9"] = f"{bm}{bd}{by[2:]}"
-            self.tags["B10"] = f"{bd}{bm}{by[2:]}"
-            self.tags["U1"] = un
-            self.tags["E1"] = em
-            regex = re.search(r"([a-zA-Z]+)(\d+)", un)
-            if regex:
-                self.tags["U2"] = regex.group(1)
-                self.tags["U3"] = regex.group(2)
-            regex = re.search(r"([a-zA-Z]+)(\d+)", em)
-            if regex:
-                self.tags["E2"] = regex.group(1)
-                self.tags["E3"] = regex.group(2)
+        #     self.tags.clear()
+        #     self.tags["N1"] = f"{fn}{ln}"
+        #     self.tags["N2"] = f"{fn[0]}{ln[0]}"
+        #     self.tags["N3"] = ln
+        #     self.tags["N4"] = fn
+        #     self.tags["N5"] = f"{fn[0]}{ln}"
+        #     self.tags["N6"] = f"{ln}{fn[0]}"
+        #     self.tags["N7"] = f"{ln[0].upper()}{ln[1:]}"
+        #     self.tags["B1"] = f"{by}{bm}{bd}"
+        #     self.tags["B2"] = f"{bm}{bd}{by}"
+        #     self.tags["B3"] = f"{bd}{bm}{by}"
+        #     self.tags["B4"] = f"{bd}{bm}"
+        #     self.tags["B5"] = by
+        #     self.tags["B6"] = f"{by}{bm}"
+        #     self.tags["B7"] = f"{bm}{by}"
+        #     self.tags["B8"] = f"{by[2:]}{bm}{bd}"
+        #     self.tags["B9"] = f"{bm}{bd}{by[2:]}"
+        #     self.tags["B10"] = f"{bd}{bm}{by[2:]}"
+        #     self.tags["U1"] = un
+        #     self.tags["E1"] = em
+        #     regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+        #     if regex:
+        #         self.tags["U2"] = regex.group(1)
+        #         self.tags["U3"] = regex.group(2)
+        #     regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+        #     if regex:
+        #         self.tags["E2"] = regex.group(1)
+        #         self.tags["E3"] = regex.group(2)
                 
-            auto = ahocorasick.Automaton()
-            for key, value in self.tags.items():
-                if value and len(value) >= 2:
-                    auto.add_word(value, (key, value))
-            auto.make_automaton()
+        #     auto = ahocorasick.Automaton()
+        #     for key, value in self.tags.items():
+        #         if value and len(value) >= 2:
+        #             auto.add_word(value, (key, value))
+        #     auto.make_automaton()
 
-            matches = []
-            for end_idx, (key, value) in auto.iter(input_password[0]):
-                start_idx = end_idx - len(value) + 1
-                matches.append((start_idx, end_idx, key, value))
+        #     matches = []
+        #     for end_idx, (key, value) in auto.iter(input_password[0]):
+        #         start_idx = end_idx - len(value) + 1
+        #         matches.append((start_idx, end_idx, key, value))
                 
-            matches.sort(key=lambda x: (x[0], -len(x[3])))
-            last_start = -1
-            for start, end, key, value in matches:
-                if start > last_start:
-                    if start != last_start + 1:
-                        processed_mask.append((input_password[0][last_start + 1:start], None))
-                    else:
-                        processed_mask.append((value, key))
+        #     matches.sort(key=lambda x: (x[0], -len(x[3])))
+        #     last_start = -1
+        #     for start, end, key, value in matches:
+        #         if start > last_start:
+        #             if start != last_start + 1:
+        #                 processed_mask.append((input_password[0][last_start + 1:start], None))
+        #             else:
+        #                 processed_mask.append((value, key))
 
-                    if key[0] == 'N':
-                        items_name.append(key)
-                    elif key[0] == 'B':
-                        items_birthday.append(key)
-                    elif key[0] == 'U':
-                        items_username.append(key)
-                    else:
-                        items_email.append(key)
-                    last_start = end
+        #             if key[0] == 'N':
+        #                 items_name.append(key)
+        #             elif key[0] == 'B':
+        #                 items_birthday.append(key)
+        #             elif key[0] == 'U':
+        #                 items_username.append(key)
+        #             else:
+        #                 items_email.append(key)
+        #             last_start = end
             
-            ret_value = self.name_structure.insert_list(items_name)
-            if ret_value != RetType.STATUS_OK:
-                print("Error parsing name PII combos")
-                return ret_value
-            ret_value = self.birthday_structure.insert_list(items_birthday)
-            if ret_value != RetType.STATUS_OK:
-                print("Error parsing birthday PII combos")
-                return ret_value
-            ret_value = self.username_structure.insert_list(items_username)
-            if ret_value != RetType.STATUS_OK:
-                print("Error parsing username PII combos")
-                return ret_value
-            ret_value = self.email_structure.insert_list(items_email)
-            if ret_value != RetType.STATUS_OK:
-                print("Error parsing email PII combos")
-                return ret_value
+        #     ret_value = self.name_structure.insert_list(items_name)
+        #     if ret_value != RetType.STATUS_OK:
+        #         print("Error parsing name PII combos")
+        #         return ret_value
+        #     ret_value = self.birthday_structure.insert_list(items_birthday)
+        #     if ret_value != RetType.STATUS_OK:
+        #         print("Error parsing birthday PII combos")
+        #         return ret_value
+        #     ret_value = self.username_structure.insert_list(items_username)
+        #     if ret_value != RetType.STATUS_OK:
+        #         print("Error parsing username PII combos")
+        #         return ret_value
+        #     ret_value = self.email_structure.insert_list(items_email)
+        #     if ret_value != RetType.STATUS_OK:
+        #         print("Error parsing email PII combos")
+        #         return ret_value
 
-        cur_pass.processed_mask = processed_mask.copy()
+        # cur_pass.processed_mask = processed_mask.copy()
 
         #################################################################
         ##--Parse out all the keyboard combinations
@@ -585,7 +585,7 @@ class TrainingData:
     #############################################################################################
     def write_data_to_disk(self, base_directory, section_directory, filename, file_encoding, items):
         try:
-            with codecs.open(os.path.join(base_directory,section_directory,filename), 'w', encoding=file_encoding) as datafile:
+            with codecs.open(os.path.join(base_directory,section_directory,filename), 'w', encoding='utf-8') as datafile:
                 for x in items:
                     datafile.write(str(x[0]) + '\t' + str(x[1])+'\n')
         except IOError as error:

@@ -7,6 +7,8 @@ import random
 import csv
 import pickle
 import itertools
+import json
+import matplotlib.pyplot as plt
 from util import *
 
 def gen_synthetic_data():
@@ -110,8 +112,8 @@ def main() -> None:
     random.shuffle(all_indices)
     mid = len(passwords) // 2
 
-    train_indices = sorted(all_indices[:mid])
-    test_indices = sorted(all_indices[mid:])
+    train_indices = all_indices[:mid]
+    test_indices = all_indices[mid:]
 
     training = [passwords[i] for i in train_indices]
     test = [passwords[i] for i in test_indices]
