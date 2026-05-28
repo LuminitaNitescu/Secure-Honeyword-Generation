@@ -101,12 +101,16 @@ def gen_synthetic_data():
 def main() -> None:
     
     passwords = []
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            password = line.strip()
-            if not password:
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
+        while True:
+            try:
+                line = f.readline()
+                if not line:
+                    break
+                
+                passwords.append(line.strip())   
+            except UnicodeDecodeError:
                 continue
-            passwords.append(password)
     
     all_indices = list(range(len(passwords)))
     random.shuffle(all_indices)
