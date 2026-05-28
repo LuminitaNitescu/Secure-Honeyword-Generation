@@ -357,7 +357,7 @@ def main():
 if __name__ == "__main__":
     main()
     
-def train(data, smoothing = 0.01, coverage = 1.0, rule_name = "Default"):
+def train(data, smoothing = 0.01, coverage = 1.0, rule_name = "Default", targeted=False):
     
     ##--Information about this program--##
     program_details = {
@@ -380,7 +380,7 @@ def train(data, smoothing = 0.01, coverage = 1.0, rule_name = "Default"):
     print("Current Status:") 
         
     ##--Initialize the training results--## 
-    training_results = TrainingData()
+    training_results = TrainingData(targeted)
     
     progress_bar = MeasurementStatus(len(data),display_status = True)
     

@@ -452,7 +452,7 @@ class PcfgClass:
         ##--Error check to make sure some transition was found--##
         if cur_transition == -1:
             ##--Due to rounding errors this can occur, if it looks like a rounding error, just set it to the first value--##
-            if random_number > 0.999:
+            if random_number > 0.99: #TODO
                 cur_transition = 0
             ##--This is outside the bounds I'd expect a rounding error. Print details so I can track it down
             else:

@@ -48,6 +48,8 @@ from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.core_grammar i
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.markov_cracker import MarkovCracker
 
 from util import UserData
+import multiprocessing
+from tqdm import tqdm
 
       
 ####################################################
@@ -230,7 +232,32 @@ if __name__ == "__main__":
     main()
 
 
-def generate(k, password, rule_name = "Default", pii: dict = None):
+def generate_honeywords_for_single_password(args):
+
+    idx, password, pii, k, start_index, pcfg = args
+    
+    honeyword_run = []
+    honeywords_left = k
+    cur_index = start_index
+    local_errors = 0
+    
+    while honeywords_left >= 0:
+        try:
+            parse_tree = pcfg.random_grammar_walk(cur_index)
+            honeyword = pcfg.gen_random_terminal(parse_tree, pii)
+            
+            # print(str(honeyword))
+            
+            if (honeyword != "" and len(honeyword) == len(password) and honeyword not in honeyword_run and honeyword != password):
+                honeyword_run.append(honeyword)
+                honeywords_left -= 1
+                
+        except Exception as msg:
+            local_errors += 1
+            
+    return honeyword_run, local_errors
+
+def generate(k, password_list: list, rule_name = "Default", pii_list: list = None):
     
     ##--Information about this program--##
     management_vars = {
@@ -283,35 +310,29 @@ def generate(k, password, rule_name = "Default", pii: dict = None):
         print("Error with the grammar, could not find the start index", file=sys.stderr)
         return 
     
-    ##--Number of honeywords left to generate
-    ##--Errors can occur that prevent a honeyword from being displayed, (char encoding is a pain)
-    ##--so this program needs to know that and then make more honeywords that can be displaced
-    honeywords_left = k
-    
     ##--If errrors occured, (used for debugging and warning users of this tool)
     errors_occured = 0
     
-    ##--Generate each honeyword
+    ##--Generate each honeyword  
+    tasks = []
+    for idx, password in enumerate(password_list):
+        pii = pii_list[idx] if pii_list else None
+        tasks.append((idx, password, pii, k, start_index, pcfg))
+    
     honeywords = []
-    while honeywords_left >= 0:
+    errors_occured = 0
+    
+    with multiprocessing.Pool() as pool:
         
-        try:
-            ##--Perform a weighted random walk of the grammar to get the parse tree
-            parse_tree = pcfg.random_grammar_walk(start_index)
-            honeyword = pcfg.gen_random_terminal(parse_tree, pii)
-            
-            if honeyword != "" and len(honeyword) == len(password) and honeyword not in honeywords and honeyword != password:
-                honeywords.append(honeyword)
-
-                ##--Print the results
-                ##--Note, this may throw an exception if the terminal it is printing to
-                ##--doesn't support the character type. For example if a Cyrillic character
-                ##--is printed on an English language Windows Command shell
-                print(str(honeyword))
-                honeywords_left = honeywords_left - 1
-            
-        except Exception as msg:
-            errors_occured += 1
+        results = tqdm(
+            pool.imap(generate_honeywords_for_single_password, tasks), 
+            total=len(tasks),
+            desc="Generating Honeywords"
+        )
+        
+        for honeyword_run, local_errors in results:
+            honeywords.append(honeyword_run)
+            errors_occured += local_errors
     
     if errors_occured != 0:
         print()

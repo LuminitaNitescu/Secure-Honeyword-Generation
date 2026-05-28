@@ -387,10 +387,11 @@ class GuessGeneration:
             if not item.get_random(self.guess):
                 return None
             
-        for i in range(0, len(self.guess)):
-            if self.guess[i] in self.tags:
-                self.guess[i] = pii.get(self.guess[i], "")
-            else:
-                self.guess[i] = pii.get(self.guess[i], self.guess[i])
+        if pii:
+            for i in range(0, len(self.guess)):
+                if self.guess[i] in self.tags:
+                    self.guess[i] = pii.get(self.guess[i], "")
+                else:
+                    self.guess[i] = pii.get(self.guess[i], self.guess[i])
             
         return ''.join(self.guess)
