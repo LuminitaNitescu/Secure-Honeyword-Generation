@@ -17,9 +17,9 @@ class PCFGModel():
             train(data=data, rule_name=rule_name)
         self.rule_name = rule_name
      
-    def generate(self, password_list, k):
+    def generate(self, password_list: list, k):
         
-        return generate(k=k, password_list=password_list, rule_name=self.rule_name)
+        return generate(k=k, password_list=[x.password for x in password_list], rule_name=self.rule_name)
     
 class TargetedPCFGModel():
     
@@ -33,7 +33,7 @@ class TargetedPCFGModel():
             train(data=data, rule_name=rule_name, targeted=True)
         self.rule_name = rule_name
      
-    def generate(self, k, query_list):
+    def generate(self, query_list: list, k):
         
         password_list = []
         tags_list = []

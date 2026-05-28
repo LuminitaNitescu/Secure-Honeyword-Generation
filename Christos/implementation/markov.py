@@ -72,8 +72,14 @@ class MarkovModel():
             queue = deque(cur, maxlen=4)
             while len(hw_parts) < len(user_data.password) and queue:
                 nxt = rng.choice(self.chain[tuple(queue)])
+                
                 if nxt == '\n':
                     break
+                
+                    # cur = rng.choice(self.starts)
+                    # queue.clear()
+                    # queue.extend(cur)
+                    # continue
                 
                 queue.extend(nxt)
                 hw_parts.extend(nxt)
@@ -81,7 +87,7 @@ class MarkovModel():
             
             if len(hw) == len(user_data.password) and hw not in res and hw != user_data.password:
                 res.append(hw)
-                
+               
         return res
 
 
