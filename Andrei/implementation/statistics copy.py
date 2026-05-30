@@ -4,7 +4,7 @@ from dataclasses import dataclass, asdict
 import json
 from typing import Iterable, List, Optional
 
-from attackers.normalized_top_pw_hg import AttackStats, NormalizedTopPWModelHG, SweetwordList
+from attackers.normalized_top_pw import AttackStats, NormalizedTopPWModel, SweetwordList
 
 
 @dataclass
@@ -16,13 +16,20 @@ class HoneygenStats:
 	attack_stats: Optional[dict] = None
 
 
-def _base_prob(attacker: NormalizedTopPWModelHG, word: str) -> float:
-	return attacker._base_prob(word)
+def _base_prob(attacker: NormalizedTopPWModel, word: str) -> float:
+	count = attacker.counts.get(word, 0)
+	if count > 0 and attacker.dataset_size > 0:
+		return count / attacker.dataset_size
+	# if attacker has the
+	try:
+		return 1.0 / (attacker.dataset_size + 1)
+	except Exception:
+		return 0.0
 
 
 def compute_epsilon_flatness(
 	sweetword_lists: Iterable[SweetwordList],
-	attacker: NormalizedTopPWModelHG,
+	attacker: NormalizedTopPWModel,
 	k: int,
 ) -> float:
 	max_prob = 0.0
