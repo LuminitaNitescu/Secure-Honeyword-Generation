@@ -7,7 +7,7 @@ from pathlib import Path
 import random
 from typing import Iterable, List, Optional
 
-from attackers.normalized_top_pw import SweetwordList
+from attackers.normalized_top_pw import NormalizedTopPWModel, SweetwordList
 from attackers.normalized_top_pw_hg import NormalizedTopPWModelHG
 from config import DEFAULT_K, DEFAULT_L, DEFAULT_MODEL_PATH, DEFAULT_SEED
 from utils.embedding import FastTextBackend
@@ -16,9 +16,10 @@ from statistics import (
 	HoneygenStats,
 	compute_attack_success_rate,
 	compute_cracked_by_t1,
+	compute_epsilon_flatness,
 	write_stats_json,
 )
- 
+
 try:
 	from tqdm import tqdm
 	TQDM_AVAILABLE = True
@@ -38,14 +39,7 @@ DATASET_MAP = {
 	"weakpass_4": "data/weakpass_4.policy.txt",
 	"zxcvbn": "data/dropbox_zxcvbn.txt",
 	"phpbb_counts": "data/phpbb_counts.txt",
-	"4_policy_counts" : "data/4_policy_counts.txt",
-	"hashmob_counts": "data/hashmob_counts.txt"
 }
-DATASET_SIZE_MAP = {
-	"4_policy_counts": 15089929449866392,
-	"hashmob_counts": 23136055988,
-}
-
 
 DEFAULT_TARGET_DATASET = "data/50k_subsample/rockyou_sorted_preprocessed.txt"
 
@@ -194,6 +188,17 @@ def save_cached_sweetwords(path: Path, entries: Iterable[SweetwordList]) -> None
 			handle.write("\n")
 
 
+def clone_sweetword_lists(entries: Iterable[SweetwordList]) -> List[SweetwordList]:
+	return [
+		SweetwordList(
+			user_id=entry.user_id,
+			sweetwords=list(entry.sweetwords),
+			real_password=entry.real_password,
+		)
+		for entry in entries
+	]
+
+
 def main() -> None:
 	args = parse_args()
 
@@ -246,25 +251,35 @@ def main() -> None:
 			save_cached_sweetwords(cache_file, sweetword_lists)
 
 	print("Training attacker model...")
-	attacker = NormalizedTopPWModelHG(db_path=DATASET_MAP[args.attacker_dataset], dataset_size=DATASET_SIZE_MAP.get(args.attacker_dataset, 50_000)) 
+	attacker = NormalizedTopPWModelHG() # NormalizedTopPWModel
+	if args.attacker_dataset == "all":
+		root = Path("data/50k_subsample")
+		paths = sorted(
+			path
+			for path in root.glob("*_sorted_preprocessed.txt")
+			if path.is_file() and "rockyou" not in path.name
+		)
+		if not paths:
+			raise FileNotFoundError("No 50k_subsample datasets found for attacker training.")
+		attacker.train_from_sorted_files(str(path) for path in paths)
+	else:
+		if "counts" in str(attacker_path):
+			attacker.train_from_aggregates_file(str(attacker_path))
+		else:
+			attacker.train_from_file(str(attacker_path))
 
-	print("Running attacker analysis...")
-	attack_stats, flatness_graph, epsilon_flatness = attacker.analyze(
-		sweetword_lists,
-		k=args.k,
-		t1=args.t1,
-		t2=args.t2,
-		show_progress=progress_enabled,
-	)
+	print("Running attack simulation...")
+	attack_lists = clone_sweetword_lists(sweetword_lists)
+	attack_stats = attacker.crack(attack_lists, t1=args.t1, t2=args.t2)
+
+	print("Computing flatness graph...")
+	flatness_lists = clone_sweetword_lists(sweetword_lists)
+	flatness_graph = attacker.flatness_graph(flatness_lists)
 	cracked_by_t1 = compute_cracked_by_t1(flatness_graph, args.k)
 
-	# print("flatness_graph:", flatness_graph)
-	# print("cracked_by_t1:", cracked_by_t1)
-
+	print("Computing epsilon-flatness...")
+	epsilon_flatness = compute_epsilon_flatness(sweetword_lists, attacker, args.k)
 	attack_success_rate = compute_attack_success_rate(attack_stats)
-
-	# print("Attack stats:")
-	# print(json.dumps(asdict(attack_stats), indent=2))
 
 	stats = HoneygenStats(
 		epsilon_flatness=epsilon_flatness,
