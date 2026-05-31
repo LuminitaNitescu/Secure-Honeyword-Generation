@@ -10,6 +10,8 @@ import itertools
 import json
 import matplotlib.pyplot as plt
 from util import *
+from collections import Counter, defaultdict
+from dataclasses import dataclass, asdict
 
 def gen_synthetic_data():
     
@@ -98,37 +100,57 @@ def gen_synthetic_data():
     
 #     aa = 0
 
-def main() -> None:
+# def main() -> None:
     
-    passwords = []
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
-        while True:
-            try:
-                line = f.readline()
-                if not line:
-                    break
+#     passwords = []
+#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
+#         while True:
+#             try:
+#                 line = f.readline()
+#                 if not line:
+#                     break
                 
-                passwords.append(line.strip())   
-            except UnicodeDecodeError:
-                continue
+#                 passwords.append(line.strip())   
+#             except UnicodeDecodeError:
+#                 continue
     
-    all_indices = list(range(len(passwords)))
-    random.shuffle(all_indices)
-    mid = len(passwords) // 2
+#     all_indices = list(range(len(passwords)))
+#     random.shuffle(all_indices)
+#     mid = len(passwords) // 2
 
-    train_indices = all_indices[:mid]
-    test_indices = all_indices[mid:]
+#     train_indices = all_indices[:mid]
+#     test_indices = all_indices[mid:]
 
-    training = [passwords[i] for i in train_indices]
-    test = [passwords[i] for i in test_indices]
+#     training = [passwords[i] for i in train_indices]
+#     test = [passwords[i] for i in test_indices]
     
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt", mode="w", encoding="utf-8") as f:
-        for item in training:
-            f.write(f"{item}\n")
+#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt", mode="w", encoding="utf-8") as f:
+#         for item in training:
+#             f.write(f"{item}\n")
             
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", mode="w", encoding="utf-8") as f:
-        for item in test:
-            f.write(f"{item}\n")
+#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", mode="w", encoding="utf-8") as f:
+#         for item in test:
+#             f.write(f"{item}\n")
+     
+def main() -> None:
+           
+    passwords = []
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            
+            passwords.append(line.strip())   
+            
+    counts = Counter(passwords)
+
+    res = defaultdict(int)
+    for pwd, count in counts.items():
+        res[count] += 1
+        
+    with open("counts.json", "w", encoding="utf-8") as handle:
+        json.dump(res, handle, indent=2)
 
 if __name__ == "__main__":
     main()
