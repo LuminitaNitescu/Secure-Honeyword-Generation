@@ -4,7 +4,7 @@ from dataclasses import dataclass, asdict
 import json
 from typing import Iterable, List, Optional
 
-from attackers.normalized_top_pw import AttackStats, NormalizedTopPWModel, SweetwordList
+from attackers.normalized_top_pw_hg import AttackStats, NormalizedTopPWModelHG, SweetwordList
 
 
 @dataclass
@@ -12,21 +12,17 @@ class HoneygenStats:
 	epsilon_flatness: float
 	attack_success_rate: float
 	flatness_graph: List[int]
+	cracked_by_t1: Optional[List[int]] = None
 	attack_stats: Optional[dict] = None
 
 
-def _base_prob(attacker: NormalizedTopPWModel, word: str) -> float:
-	count = attacker.counts.get(word, 0)
-	if count > 0 and attacker.dataset_size > 0:
-		return count / attacker.dataset_size
-	if attacker.smoothing == "plus_one":
-		return 1.0 / (attacker.dataset_size + 1)
-	return 0.0
+def _base_prob(attacker: NormalizedTopPWModelHG, word: str) -> float:
+	return attacker._base_prob(word)
 
 
 def compute_epsilon_flatness(
 	sweetword_lists: Iterable[SweetwordList],
-	attacker: NormalizedTopPWModel,
+	attacker: NormalizedTopPWModelHG,
 	k: int,
 ) -> float:
 	max_prob = 0.0
@@ -47,6 +43,16 @@ def compute_epsilon_flatness(
 
 def compute_attack_success_rate(stats: AttackStats) -> float:
 	return stats.cracked_percent / 100.0
+
+
+def compute_cracked_by_t1(flatness_graph: Iterable[int], max_t: int) -> List[int]:
+	results: List[int] = []
+	attempts = list(flatness_graph)
+	if not attempts or max_t <= 0:
+		return results
+	for t in range(1, max_t + 1):
+		results.append(sum(1 for value in attempts if value <= t))
+	return results
 
 
 def write_stats_json(stats: HoneygenStats, output_path: str) -> None:

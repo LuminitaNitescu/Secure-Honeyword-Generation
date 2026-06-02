@@ -13,47 +13,53 @@ from util import *
 from collections import Counter, defaultdict
 from dataclasses import dataclass, asdict
 
-def gen_synthetic_data():
+# def gen_synthetic_data():
     
-    with open("C:/Users/ctamv/Documents/CS/CS4710/BreachCompilation/preprocessed_data/train_data.pickle", 'rb') as f:
-        data = pickle.load(f)
-    data = list(itertools.chain.from_iterable(data))
-    
-    total_rows = len(data)
-    filename = "synthetic.csv"
-    
-    # Initialize the specific Mimesis data providers
-    person = Person(Locale.EN)
-    internet = Internet()
-    datetime_provider = Datetime()
-    
-    header = ["password", "email", "username", "first_name", "last_name", "birthday"]
-    
-    print(f"Generating {total_rows:,} rows utilizing Mimesis...")
-    
-    with open(filename, mode="w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\lengths.json", "r", encoding="utf-8") as handle:
+#         lengths = json.load(handle)
         
-        for i in range(total_rows):
-            fn = person.first_name()
-            ln = person.last_name()
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\counts.json", "r", encoding="utf-8") as handle:
+#         counts = json.load(handle)
+    
+#     total_rows = len(data)
+#     filename = "synthetic.csv"
+    
+#     # Initialize the specific Mimesis data providers
+#     person = Person(Locale.EN)
+#     internet = Internet()
+#     datetime_provider = Datetime()
+    
+#     header = ["password", "email", "username", "first_name", "last_name", "birthday"]
+    
+#     print(f"Generating {total_rows:,} rows utilizing Mimesis...")
+    
+#     with open(filename, mode="w", newline="", encoding="utf-8") as f:
+#         writer = csv.writer(f)
+#         writer.writerow(header)
+        
+#         for i in range(total_rows):
             
-            row = [
-                data[i],
-                random.choice([fn, fn.lower(), fn.upper()]),
-                random.choice([ln, ln.lower(), ln.upper()]),
-                person.email(domains=["gmail.com", "yahoo.com", "@hotmail.com", "@outlook.com"]),
-                datetime_provider.formatted_date(fmt="%d%m%Y"),
-                person.username()
-            ]
+#             pw = person.password(length=random.choices(lengths.keys(), weights=lengths.values(), k=1)[0])
+#             fn_0 = person.first_name()
+#             fn = random.choice([fn_0, fn_0.lower(), fn_0.upper()])
+#             ln_0 = person.last_name()
+#             ln = random.choice([ln_0, ln_0.lower(), ln_0.upper()])
             
-            writer.writerow(row)
+#             row = [
+#                 person.password(length=random.choices(lengths.keys(), weights=lengths.values(), k=1)[0])
+#                 random.choice([fn, fn.lower(), fn.upper()]),
+#                 random.choice([ln, ln.lower(), ln.upper()]),
+#                 person.email(domains=["gmail.com", "yahoo.com", "@hotmail.com", "@outlook.com"]),
+#                 datetime_provider.formatted_date(fmt="%d%m%Y"),
+#                 person.username()
+#             ]
             
-            if (i + 1) % 10_000 == 0:
-                print(f"Progress: {i + 1:,} rows written.")
+#             writer.writerow(row)
+            
+#             if (i + 1) % 10_000 == 0:
+#                 print(f"Progress: {i + 1:,} rows written.")
                 
-    print(f"Finished! Saved to {filename}")
+#     print(f"Finished! Saved to {filename}")
 
 # def main() -> None:
     
@@ -100,57 +106,50 @@ def gen_synthetic_data():
     
 #     aa = 0
 
+def main() -> None:
+    
+    passwords = []
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
+        while True:
+            try:
+                line = f.readline()
+                if not line:
+                    break
+                
+                passwords.append(line.strip())   
+            except UnicodeDecodeError:
+                continue
+    
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed_ascii.txt", mode="w", encoding="utf-8") as f:
+        for item in passwords:
+            f.write(f"{item}\n")
+     
 # def main() -> None:
     
-#     passwords = []
-#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
-#         while True:
-#             try:
-#                 line = f.readline()
-#                 if not line:
-#                     break
-                
-#                 passwords.append(line.strip())   
-#             except UnicodeDecodeError:
-#                 continue
+#     size = 0
+#     lengths = []
+#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
+#         for line in f:
+#             lengths.append(len(line.rstrip('\n')))
+#             size += 1
     
-#     all_indices = list(range(len(passwords)))
-#     random.shuffle(all_indices)
-#     mid = len(passwords) // 2
-
-#     train_indices = all_indices[:mid]
-#     test_indices = all_indices[mid:]
-
-#     training = [passwords[i] for i in train_indices]
-#     test = [passwords[i] for i in test_indices]
-    
-#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt", mode="w", encoding="utf-8") as f:
-#         for item in training:
-#             f.write(f"{item}\n")
-            
-#     with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", mode="w", encoding="utf-8") as f:
-#         for item in test:
-#             f.write(f"{item}\n")
-     
-def main() -> None:
-           
-    passwords = []
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            
-            passwords.append(line.strip())   
-            
-    counts = Counter(passwords)
-
-    res = defaultdict(int)
-    for pwd, count in counts.items():
-        res[count] += 1
+#     res = dict()
+#     for k,v in Counter(lengths).items():
+#         res[k] = v / size
         
-    with open("counts.json", "w", encoding="utf-8") as handle:
-        json.dump(res, handle, indent=2)
+#     with open("lengths.json", "w", encoding="utf-8") as handle:
+#         json.dump(res, handle, indent=2)
+
+# def main() -> None:
+           
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
+#         subsample = {line.strip() for line in f if line.strip()}
+
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
+#         difference = [line.strip() for line in f if line.strip() and line.strip() not in subsample]
+
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed_tr2.txt", mode="w", encoding="utf-8") as f:
+#         f.write("\n".join(difference) + "\n")
 
 if __name__ == "__main__":
     main()
