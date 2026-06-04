@@ -50,8 +50,10 @@ from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.markov_cracker
 from util import UserData
 import multiprocessing
 from tqdm import tqdm
+from itertools import zip_longest
 
-      
+import math
+
 ####################################################
 # Simply parses the command line
 ####################################################
@@ -232,32 +234,50 @@ if __name__ == "__main__":
     main()
 
 
-def generate_honeywords_for_single_password(args):
+_worker_pcfg = None
 
-    idx, password, pii, k, start_index, pcfg = args
+def _init_worker(pcfg):
+    global _worker_pcfg
+    _worker_pcfg = pcfg
+
+def _generate_honeywords_for_single_password(args):
+
+    idx, query, k, start_index, seed = args
     
-    honeyword_run = []
+    password = query[0]
+    structure = query[1]
+    
+    honeywords = [password]
+    res = [[password, _worker_pcfg.get_prob(password, structure, start_index)]]
+    
     honeywords_left = k
     cur_index = start_index
     local_errors = 0
     
+    rng = random.Random(seed)
+    
     while honeywords_left >= 0:
         try:
-            parse_tree = pcfg.random_grammar_walk(cur_index)
-            honeyword = pcfg.gen_random_terminal(parse_tree, pii)
+            parse_tree, p_structure = _worker_pcfg.random_grammar_walk(cur_index)
+            honeyword, p_replacements = _worker_pcfg.gen_random_terminal(parse_tree, query[2] if len(query) > 2 else None)
             
             # print(str(honeyword))
             
-            if (honeyword != "" and len(honeyword) == len(password) and honeyword not in honeyword_run and honeyword != password):
-                honeyword_run.append(honeyword)
+            if (len(honeyword) >= 1 and honeyword not in honeywords):
+                res.append([honeyword, math.exp(p_structure + p_replacements)])
+                honeywords.append(honeyword)
                 honeywords_left -= 1
+                
+            #TODO Append actual password with probability and shuffle
                 
         except Exception as msg:
             local_errors += 1
+    
+    rng.shuffle(res)
             
-    return honeyword_run, local_errors
+    return res, local_errors
 
-def generate(k, password_list: list, rule_name = "Default", pii_list: list = None):
+def generate(queries: list[list[str]], k, seed, rule_name = "Default"):
     
     ##--Information about this program--##
     management_vars = {
@@ -314,18 +334,17 @@ def generate(k, password_list: list, rule_name = "Default", pii_list: list = Non
     errors_occured = 0
     
     ##--Generate each honeyword  
-    tasks = []
-    for idx, password in enumerate(password_list):
-        pii = pii_list[idx] if pii_list else None
-        tasks.append((idx, password, pii, k, start_index, pcfg))
-    
     honeywords = []
     errors_occured = 0
     
-    with multiprocessing.Pool() as pool:
-        
+    tasks = [
+        (idx, query, k, start_index, seed + idx)
+        for idx, query in enumerate(queries)
+    ]
+
+    with multiprocessing.Pool(initializer=_init_worker, initargs=(pcfg,)) as pool:
         results = tqdm(
-            pool.imap(generate_honeywords_for_single_password, tasks), 
+            pool.imap(_generate_honeywords_for_single_password, tasks),
             total=len(tasks),
             desc="Generating Honeywords"
         )

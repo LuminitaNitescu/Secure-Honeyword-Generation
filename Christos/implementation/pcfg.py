@@ -17,9 +17,13 @@ class PCFGModel():
             train(data=data, rule_name=rule_name)
         self.rule_name = rule_name
      
-    def generate(self, password_list: list, k):
+    def generate(self, queries: list[UserData], k, seed, structures: dict[str, str] = None):
         
-        return generate(k=k, password_list=[x.password for x in password_list], rule_name=self.rule_name)
+        queries_processed = []
+        for query in queries:
+            queries_processed.append([query.password, structures[query.password], None])
+        
+        return generate(queries=queries_processed, k=k-1, rule_name=self.rule_name, seed=seed)
     
 class TargetedPCFGModel():
     
@@ -33,10 +37,9 @@ class TargetedPCFGModel():
             train(data=data, rule_name=rule_name, targeted=True)
         self.rule_name = rule_name
      
-    def generate(self, query_list: list, k):
+    def generate(self, query_list: list, k, seed, structures: dict[str, str] = None):
         
-        password_list = []
-        tags_list = []
+        queries_processed = []
         for query in query_list:
             pw = query.password
             fn = query.first_name
@@ -76,7 +79,6 @@ class TargetedPCFGModel():
                 tags["E2"] = regex.group(1)
                 tags["E3"] = regex.group(2)
                 
-            tags_list.append(tags)
-            password_list.append(pw)
+            queries_processed.append([pw, structures[pw], tags])
         
-        return generate(k=k, password_list=password_list, rule_name=self.rule_name, pii_list=tags_list)
+        return generate(queries=queries_processed, k=k-1, rule_name=self.rule_name, seed=seed)

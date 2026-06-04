@@ -10,6 +10,8 @@ import random ##--Used for honeyword generation
 
 from .markov_cracker import MarkovCracker, MarkovIndex
 
+import math
+
 
 ########################################################################################
 # GuessIndex should only be created/manipulated by the GuessGeneration class
@@ -229,35 +231,31 @@ class GuessIndex:
     # Mostly used for honeyword generation
     #####################################################################################################
     def get_random(self, guess):
+        log_prob = 0.0
         
-        ##--Copy = It is a direct copy of values. For example instert '123456'
-        ##--Shadow = If you are copying over values that aren't terminals. For example L3=>['cat','hat']. They are not terminals since you still need to apply capitalization rules to them
-        if self.function in ['Copy','Shadow']:
-            try:    
-                guess[self.guess_pointer] = random.choice(self.cur_dic['values'])
-            
-            ##--If the list is empty it will raise an exception--##
-            except:            
-                return False
-            
-        ##----Capitalize the value passed in from the previous section----
+        if self.function in ['Copy', 'Shadow']:
+            try:
+                values = self.cur_dic['values']
+                guess[self.guess_pointer] = random.choice(values)
+                log_prob = math.log(1.0 / len(values))
+            except:
+                return False, float('-inf')
+
         elif self.function == 'Capitalization':
-            try:    
-                rule = random.choice(self.cur_dic['values'])
+            try:
+                values = self.cur_dic['values']
+                rule = random.choice(values)
+                log_prob = math.log(1.0 / len(values))
+            except:
+                return False, float('-inf')
                 
-            ##--If the list is empty it will raise an exception--##
-            except:            
-                return False  
-                          
             temp_string = []
             base_word = guess[self.guess_pointer]
-            
-            for letterPos in range(0,len(base_word)):
-                if rule[letterPos]=='U':
+            for letterPos in range(0, len(base_word)):
+                if rule[letterPos] == 'U':
                     temp_string.append(base_word[letterPos].upper())
                 else:
                     temp_string.append(base_word[letterPos].lower())
-            
             guess[self.guess_pointer] = ''.join(temp_string)
 
         ##--Add Markov expansion. Currently using the same logic as JtR's --Markov Mode. Will print out all terminals
@@ -275,8 +273,8 @@ class GuessIndex:
             ##--for honeywords I figure that's good enough since there is not a fast index option for the current Markov
             ##--algorithm. Users might be annoyed if it takes two weeks to generate an accurate Markov guess vs one that is "close"
             guess[self.guess_pointer] =self.markov_cracker.get_random(min_level = levels[0], suggested_max_level = levels[1])
-                
-        return True
+                      
+        return True, log_prob
             
             
 #########################################################################################################
@@ -376,22 +374,21 @@ class GuessGeneration:
     # Returns None if there are no possible guesses to generate
     ################################################################################################################
     def get_random_guess(self, pii: dict = None):
-        ##--Initialize the guess with the first terminal--##
-        ##--Yes it's added overhead since we just throw the guess away but it initializes the structure so it avoids having
-        ##--to write additional code
-        for item in self.structures: 
+        for item in self.structures:
             item.reset(self.guess, new=True)
-        
-        ##--Now get a random guess
-        for item in self.structures: 
-            if not item.get_random(self.guess):
-                return None
-            
+
+        log_prob = 0.0
+        for item in self.structures:
+            success, item_log_prob = item.get_random(self.guess)
+            if not success:
+                return None, 0.0
+            log_prob += item_log_prob
+
         if pii:
             for i in range(0, len(self.guess)):
                 if self.guess[i] in self.tags:
                     self.guess[i] = pii.get(self.guess[i], "")
                 else:
                     self.guess[i] = pii.get(self.guess[i], self.guess[i])
-            
-        return ''.join(self.guess)
+
+        return ''.join(self.guess), log_prob

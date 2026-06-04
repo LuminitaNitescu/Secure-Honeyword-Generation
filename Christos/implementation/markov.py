@@ -1,4 +1,3 @@
-import random as rng
 import pickle
 import os
 from collections import defaultdict, deque
@@ -7,9 +6,12 @@ import itertools
 from multiprocessing import Pool, Manager
 from functools import partial
 from util import *
+import math
+from tqdm import tqdm
+import random
 
 
-def process_password(i):
+def _process_password(i):
     
     i = i[0]
             
@@ -48,48 +50,111 @@ class MarkovModel():
         self.data = data
         
         with Pool() as pool:
-            results = pool.map(process_password, self.data)
+            results = list(
+                tqdm(
+                    pool.imap(_process_password, self.data),
+                    total=len(self.data),
+                    desc="Markov model training: Password processing."
+                )
+            )
             
-        self.chain  = defaultdict(list)
-        self.starts = []
+        total_chain = defaultdict(int)
+        total_starts = 0
+            
+        self.chain  = dict()
+        self.starts = defaultdict(float)
         for chain, starts in results:
-            self.starts.extend(starts)
+            self.starts["".join(starts)] += 1
+            total_starts += 1
             for k, v in chain.items():
-                self.chain[k].extend(v)
+                k_str = "".join(k)
+                if k_str not in self.chain.keys():
+                    self.chain[k_str] = defaultdict(float)
+                for v_ind in v:
+                    self.chain[k_str][v_ind] += 1
+                total_chain[k_str] += 1
+                    
+        for start in self.starts.keys():
+            self.starts[start] = self.starts[start] / total_starts
+        for chain in self.chain.keys():
+            for nxt in self.chain[chain].keys():
+                self.chain[chain][nxt] = self.chain[chain][nxt] / total_chain[chain]
     
         os.makedirs('./Christos/trained_models', exist_ok=True)
         with open('./Christos/trained_models/markov.pickle', 'wb') as f:
             pickle.dump({"starts": self.starts, "chain": self.chain}, f)
      
-    def generate(self, user_data: UserData, k):
-        
-        res = []
-        while len(res) < k:         
-            cur = rng.choice(self.starts)
+    def prob_pw(self, word: str) -> float:
+
+        if not word:
+            return 0.0
+
+        start = word[:4]
+        start_key = "".join(start)
+
+        if start_key not in self.starts:
+            return 0.0
+
+        log_p = math.log(self.starts[start_key])
+
+        queue = deque(start, maxlen=4)
+        for ch in word[4:]:
+            context_key = "".join(queue)
+            if context_key not in self.chain:
+                return 0.0
+            transitions = self.chain[context_key]
+            if ch not in transitions:
+                return 0.0
+            log_p += math.log(transitions[ch])
+            queue.append(ch)
+
+        context_key = "".join(queue)
+        if context_key not in self.chain:
+            return 0.0
+        transitions = self.chain[context_key]
+        if '\n' not in transitions:
+            return 0.0
+        log_p += math.log(transitions['\n'])
+
+        return math.exp(log_p)
+    
+    def generate(self, user_data: UserData, k, seed):
+    
+        keys = list(self.starts.keys())
+        probs = list(self.starts.values())
+        rng = random.Random(seed)
+    
+        res = [[user_data.password, self.prob_pw(word=user_data.password)]]
+        honeywords = [user_data.password]
+        while len(res) < k-1:         
+            cur = rng.choices(keys, weights=probs, k=1)[0]
             hw_parts = []
             hw_parts.extend(cur)
             
+            log_p = math.log(self.starts[cur])
+            
             queue = deque(cur, maxlen=4)
-            while len(hw_parts) < len(user_data.password) and queue:
-                nxt = rng.choice(self.chain[tuple(queue)])
+            # while len(hw_parts) < len(user_data.password) and queue:
+            while queue:
+                chars = self.chain["".join(queue)]
+                nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
+                
+                log_p += math.log(chars[nxt])
                 
                 if nxt == '\n':
                     break
-                
-                    # cur = rng.choice(self.starts)
-                    # queue.clear()
-                    # queue.extend(cur)
-                    # continue
                 
                 queue.extend(nxt)
                 hw_parts.extend(nxt)
             hw = "".join(hw_parts)
             
-            if len(hw) == len(user_data.password) and hw not in res and hw != user_data.password:
-                res.append(hw)
+            if len(hw) >= 1 and hw not in honeywords:
+                res.append([hw, math.exp(log_p)])
+                honeywords.append(hw)
+            
+        rng.shuffle(res)
                
         return res
-
 
 def process_password_targeted(i, chars):
             
@@ -188,7 +253,9 @@ class TargetedMarkovModel():
         with open('./Christos/trained_models/targeted_markov.pickle', 'wb') as f:
             pickle.dump({"starts": self.starts, "chain": self.chain}, f)
      
-    def generate(self, user_data: UserData, k):
+    def generate(self, user_data: UserData, k, seed):
+        
+        rng = random.Random(seed)
         
         fn = user_data.first_name
         ln = user_data.last_name
@@ -227,8 +294,8 @@ class TargetedMarkovModel():
             tags[self.chars[21]] = regex.group(1)
             tags[self.chars[22]] = regex.group(2)
         
-        res = []
-        while len(res) < k:
+        res = [user_data.password]
+        while len(res) < k-1:
             
             cur = rng.choice(self.starts)
             hw_parts = []
@@ -248,7 +315,9 @@ class TargetedMarkovModel():
                 hw_parts.extend(nxt)
             hw = "".join(hw_parts)
             
-            if len(hw) == len(user_data.password) and hw not in res and hw != user_data.password:
+            if len(hw) >= 1 and hw not in res:
                 res.append(hw)
+                
+        rng.shuffle(res)
                 
         return res

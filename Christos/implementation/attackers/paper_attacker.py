@@ -11,17 +11,17 @@ from tqdm import tqdm
 @dataclass
 class SweetwordList:
     user_id: str
-    sweetwords: List[str]
+    sweetwords: List[Tuple[str, float]]
     real_password: Optional[str] = None
     num_failure: int = 0
     attempted: set[str] = field(default_factory=set)
     _index: Dict[str, int] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._index = {word: idx for idx, word in enumerate(self.sweetwords)}
+        self._index = {word: idx for idx, (word, _) in enumerate(self.sweetwords)}
 
-    def remaining(self) -> List[str]:
-        return [word for word in self.sweetwords if word not in self.attempted]
+    def remaining(self) -> List[Tuple[str, float]]:
+        return [(word, pr_hw) for word, pr_hw in self.sweetwords if word not in self.attempted]
 
 
 @dataclass
@@ -37,7 +37,7 @@ class AttackStats:
     success_curve: List[Tuple[int, int]]
 
 
-class NormalizedTopPWModelHG:
+class NormalizedPWModel:
     def __init__(self, db_path: str, dataset_size: int) -> None:
         """
         Initializes the model for disk-based binary search.
@@ -96,148 +96,70 @@ class NormalizedTopPWModelHG:
 
         return 0
 
-    # -------------------------------------------------------------------------
-    # CHANGE 1: _base_prob now applies +1 smoothing (paper Sec. IV-B).
-    #
-    # Previously: returned 0.0 for any OOV word.
-    # Now:        returns 1 / (|D| + 1) for OOV words, matching the "+1 smooth"
-    #             technique described in the paper. This prevents the attacker
-    #             from treating all unseen sweetwords as equally non-threatening,
-    #             and gives them a small but non-zero PrPW estimate.
-    # -------------------------------------------------------------------------
-    def _base_prob(self, word: str) -> float:
-        """
-        Fetches the exact count from disk and returns its normalized probability.
-        OOV words receive +1 smoothing: Pr = 1 / (|D| + 1).
-        """
-        count = self._binary_search_count(word)
-        if count > 0:
-            return count / self.dataset_size
-        # +1 smoothing for out-of-vocabulary words (paper Sec. IV-B)
-        return 1.0 / (self.dataset_size + 1)
-
-    # -------------------------------------------------------------------------
-    # CHANGE 2: new _hw_prob method representing PrHW(·).
-    #
-    # Previously: no concept of PrHW existed; the attacker only used PrPW.
-    # Now:        PrHW(·) is the honeyword-generation probability. For the A1
-    #             List attacker against a List honeyword method, the server uses
-    #             the same List model, so PrHW uses the same DB. The attacker
-    #             knows the honeyword method (Kerckhoffs) and therefore knows
-    #             PrHW = PrPW from the same source. Keeping them as separate
-    #             methods makes it easy to swap in a different PrHW later (e.g.
-    #             if the server used PCFG or Markov instead of List).
-    # -------------------------------------------------------------------------
-    def _hw_prob(self, word: str) -> float:
-        """
-        Returns PrHW(word): the probability that this word would be generated
-        as a honeyword by the server's List model.
-
-        For the A1 List-vs-List case this is identical to _base_prob, since
-        the attacker knows the server uses the same List model (Kerckhoffs).
-        Override or extend this method to model a different server-side method.
-        """
-        return self._base_prob(word)
-
-    # -------------------------------------------------------------------------
-    # CHANGE 3: new _ratio method implementing PrPW(w) / PrHW(w) with clamping.
-    #
-    # Previously: no ratio was computed; ranking used raw PrPW values.
-    # Now:        implements Eq. 4 of the paper. The ratio is the key quantity
-    #             the optimal A1 attacker sorts by (higher ratio = more likely
-    #             to be the real password). The clamping rule from Sec. IV-B
-    #             handles the false-positive problem: if a word is OOV (count=0)
-    #             and its smoothed PrPW/PrHW ratio would exceed 1, we clamp it
-    #             to 1. This prevents the smoothed mass from inflating OOV words
-    #             above in-vocabulary candidates.
-    # -------------------------------------------------------------------------
-    def _ratio(self, word: str, count: int) -> float:
+    def _ratio(self, word: str, count: int, pr_hw: float) -> float:
         """
         Computes PrPW(word) / PrHW(word), the ranking key for the optimal A1
         attacker (paper Eq. 4).
 
         Clamping rule (paper Sec. IV-B): if the word is OOV (count == 0) and
-        the smoothed ratio would exceed 1.0, clamp to 1.0.  This eliminates
-        false positives caused by the +1 smoothing mass being assigned to words
-        that the server's honeyword model assigns a higher probability to.
+        the smoothed ratio would exceed 1.0, clamp to 1.0.
         """
         pr_pw = (count / self.dataset_size) if count > 0 else 1.0 / (self.dataset_size + 1)
-        pr_hw = self._hw_prob(word)
 
         if pr_hw <= 0:
-            # Should not occur with +1 smoothing, but guard against division by zero
             return 1.0
 
         ratio = pr_pw / pr_hw
 
-        # Clamp OOV false positives (paper Sec. IV-B)
         if count == 0 and ratio > 1.0:
             return 1.0
 
         return ratio
 
-    # -------------------------------------------------------------------------
-    # CHANGE 4: _get_sweetword now ranks by PrPW/PrHW ratio instead of PrPW.
-    #
-    # Previously: best = argmax PrPW(w) / sum(PrPW)  — Eq. 3 style (tweaking-
-    #             tail), where PrHW cancels because it is constant.
-    # Now:        best = argmax [PrPW(w)/PrHW(w)] / sum_t[PrPW(t)/PrHW(t)]
-    #             which is Eq. 4 of the paper, the correct strategy for the A1
-    #             attacker against password-model based honeyword methods.
-    #             The normalising denominator (sum of ratios) does not change
-    #             which word is argmax, but is retained so the returned priority
-    #             value is a proper posterior probability Pr(pw_j | SW_i).
-    # -------------------------------------------------------------------------
     def _get_sweetword(self, entry: SweetwordList) -> Tuple[float, Optional[str], int]:
         remaining = entry.remaining()
         if not remaining:
             return 0.0, None, 0
 
-        # Fetch counts once to avoid double disk reads
-        counts = {word: self._binary_search_count(word) for word in remaining}
+        counts = {word: self._binary_search_count(word) for word, _ in remaining}
         nonzero_count = sum(1 for c in counts.values() if c > 0)
 
-        # Compute PrPW/PrHW ratio for each remaining sweetword (Eq. 4)
-        ratios = {word: self._ratio(word, counts[word]) for word in remaining}
+        ratios = {
+            word: self._ratio(word, counts[word], pr_hw)
+            for word, pr_hw in remaining
+        }
 
         denom = sum(ratios.values())
 
         if denom <= 0:
-            fallback = min(remaining, key=lambda w: entry._index.get(w, 0))
-            return 0.0, fallback, nonzero_count
+            fallback = min(remaining, key=lambda wp: entry._index.get(wp[0], 0))
+            return 0.0, fallback[0], nonzero_count
 
         best = max(
             remaining,
-            key=lambda w: (ratios[w], -entry._index.get(w, 0)),
+            key=lambda wp: (ratios[wp[0]], -entry._index.get(wp[0], 0)),
         )
-        return ratios[best] / denom, best, nonzero_count
+        return ratios[best[0]] / denom, best[0], nonzero_count
 
-    # -------------------------------------------------------------------------
-    # CHANGE 5: _get_sweetword_with_probs updated to accept ratio cache instead
-    #           of raw probability cache, and ranks by ratio (Eq. 4).
-    #
-    # Previously: cache held raw PrPW values; ranking was argmax PrPW/sum(PrPW).
-    # Now:        cache holds PrPW/PrHW ratios; ranking is argmax ratio/sum(ratio).
-    # -------------------------------------------------------------------------
     def _get_sweetword_with_probs(
         self,
         entry: SweetwordList,
-        ratio_cache: Dict[str, float],   # renamed: was base_probs, now ratios
+        ratio_cache: Dict[str, float],
     ) -> Tuple[float, Optional[str]]:
         remaining = entry.remaining()
         if not remaining:
             return 0.0, None
 
-        denom = sum(ratio_cache.get(word, 0.0) for word in remaining)
+        denom = sum(ratio_cache.get(word, 0.0) for word, _ in remaining)
         if denom <= 0:
-            fallback = min(remaining, key=lambda w: entry._index.get(w, 0))
-            return 0.0, fallback
+            fallback = min(remaining, key=lambda wp: entry._index.get(wp[0], 0))
+            return 0.0, fallback[0]
 
         best = max(
             remaining,
-            key=lambda w: (ratio_cache.get(w, 0.0), -entry._index.get(w, 0)),
+            key=lambda wp: (ratio_cache.get(wp[0], 0.0), -entry._index.get(wp[0], 0)),
         )
-        return ratio_cache.get(best, 0.0) / denom, best
+        return ratio_cache.get(best[0], 0.0) / denom, best[0]
 
     def _clone_entries(self, entries: Iterable[SweetwordList]) -> List[SweetwordList]:
         return [
@@ -249,15 +171,6 @@ class NormalizedTopPWModelHG:
             for entry in entries
         ]
 
-    # -------------------------------------------------------------------------
-    # CHANGE 6: _build_prob_cache now builds a ratio cache (PrPW/PrHW per word)
-    #           instead of a raw probability cache.
-    #
-    # Previously: stored Pr(word) = count / dataset_size (0.0 for OOV).
-    # Now:        stores the clamped PrPW/PrHW ratio for every word, which is
-    #             the quantity Eq. 4 requires. epsilon_flatness is computed from
-    #             the ratio-based posterior Pr(pw_j | SW_i) for the real password.
-    # -------------------------------------------------------------------------
     def _build_prob_cache(
         self,
         entries: Iterable[SweetwordList],
@@ -268,13 +181,14 @@ class NormalizedTopPWModelHG:
         total_nonzero_count = 0
 
         for entry in entries:
-            counts = {word: self._binary_search_count(word) for word in entry.sweetwords}
+            # CHANGE 6: unpack (word, pr_hw) from each sweetword tuple.
+            # pr_hw comes from the stored value rather than being recomputed.
+            counts = {word: self._binary_search_count(word) for word, _ in entry.sweetwords}
             total_nonzero_count += sum(1 for c in counts.values() if c > 0)
 
-            # Build per-word PrPW/PrHW ratios (Eq. 4)
             entry_ratios = {
-                word: self._ratio(word, counts[word])
-                for word in entry.sweetwords
+                word: self._ratio(word, counts[word], pr_hw)
+                for word, pr_hw in entry.sweetwords
             }
             ratio_cache[entry.user_id] = entry_ratios
 
@@ -295,7 +209,7 @@ class NormalizedTopPWModelHG:
     def _crack_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
-        ratio_cache: Dict[str, Dict[str, float]],   # renamed for clarity
+        ratio_cache: Dict[str, Dict[str, float]],
         t1: int = 1,
         t2: Optional[int] = None,
         show_progress: bool = True,
@@ -393,7 +307,7 @@ class NormalizedTopPWModelHG:
     def _flatness_graph_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
-        ratio_cache: Dict[str, Dict[str, float]],   # renamed for clarity
+        ratio_cache: Dict[str, Dict[str, float]],
         show_progress: bool = True,
     ) -> List[int]:
         results: List[int] = []

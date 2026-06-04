@@ -602,13 +602,13 @@ class PasswordParser:
     ###################################################################################    
     def parse_base(self,items):
         # Used to save the "string" representation of the base structure
-        final_value = ""
+        sections = []
         ##--Loop through the different sections for the mask
         for section in self.processed_mask:
             ##--If this happens a mistake occured
             if section[1] == None:
                 print("There is a code error in how the password was parsed")
                 RetType.GENERIC_ERROR
-            final_value+= section[1]
-        items.append(final_value)
-        return RetType.STATUS_OK
+            sections.append(section[1])
+        items.append("".join(sections))
+        return RetType.STATUS_OK, sections

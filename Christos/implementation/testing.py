@@ -11,8 +11,9 @@ parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from attackers.normalized_top_pw import SweetwordList
-from attackers.normalized_top_pw_hg import NormalizedTopPWModelHG
+# from attackers.normalized_top_pw import SweetwordList
+# from attackers.normalized_top_pw_hg import NormalizedTopPWModelHG
+from attackers.paper_attacker import NormalizedPWModel, SweetwordList
 from statistics_custom import (
     HoneygenStats,
     compute_attack_success_rate,
@@ -30,6 +31,7 @@ import multiprocessing
 from typing import List, Iterable
 from tqdm import tqdm
 
+from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer import get_structures
 
 worker_model = None
 
@@ -42,12 +44,8 @@ def _generate_single_sweetword_list(args) -> SweetwordList:
     idx, user_data, base_seed, k = args
     
     row_seed = base_seed + idx
-    worker_rng = random.Random(row_seed)
 
-    sweetwords = worker_model.generate(user_data=user_data, k=k - 1)
-    sweetwords.append(user_data.password)
-    worker_rng.shuffle(sweetwords)
-    
+    sweetwords = worker_model.generate(user_data=user_data, k=k, seed=row_seed)  
     return SweetwordList(
         user_id=str(idx),
         sweetwords=sweetwords,
@@ -58,66 +56,65 @@ def main() -> None:
     # --- Configuration Parameters ---
     k = 20
     seed = 67
-    t1 = 20
-    t2 = 61
+    t1 = 1
+    t2 = 10000
 
     # --- Core Logic ---
     
     passwords = []
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\50k_subsample\\rockyou_sorted_preprocessed_ascii.txt", "r", encoding="utf-8") as f:
+    passwords_pure = []
+    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\50k_subsample\\rockyou_sorted_preprocessed_ascii.txt", "r", encoding="utf-8") as f:
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", "r", encoding="utf-8") as f:
         for line in f:
             password = line.strip()
-            if not password or len(password) > 20:
+            if not password:
                 continue
             
-            if len(passwords) >= 2000:
+            if len(passwords) > 5:
                 break
             
             # passwords.append(password)
             passwords.append(UserData(password=password))
+            passwords_pure.append([password])
 
-    # 2. Initialize model and build sweetword lists
+    # # 2. Initialize model and build sweetword lists
     # data_train = []
-    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr2_ascii.txt", "r", encoding="utf-8") as f:
+    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt", "r", encoding="utf-8") as f:
     #     for line in f:
     #         password = line.strip()
     #         if not password:
     #             continue
+            
     #         data_train.append([password])
     
-    model = PCFGModel()
+    # model = MarkovModel()
     # model.load_data(data=data_train)
+    model = PCFGModel()
     model.load_data(rule_name="RockYouFinal")
-    # print("Training done.")
+    print("Training done.")
     
     # 3. Train attacker model
-    attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_counts.txt", 
+    attacker = NormalizedPWModel(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_counts.txt", 
                                       dataset_size=23136055988) 
-
-    rng = random.Random(seed)
     
-    sweetword_lists_unprocessed = model.generate(password_list=passwords, k=k-1)
+    sweetword_lists_unprocessed = model.generate(queries=passwords, k=k-1, seed=seed, structures=get_structures(passwords_pure))
     
     sweetword_lists = []
     for idx, sweetwords in enumerate(sweetword_lists_unprocessed):
-
-        password = passwords[idx].password
-        sweetwords.append(password)
-        rng.shuffle(sweetwords)
         sweetword_lists.append(
             SweetwordList(
                 user_id=str(idx),
                 sweetwords=sweetwords,
-                real_password=password,
+                real_password=passwords[idx].password,
             )
         )
     
+    rng = random.Random(seed)
+
     # sweetword_lists = []
     # for idx, password in enumerate(passwords):
 
-    #     sweetwords = model.generate(user_data=password, k=k - 1)
-    #     sweetwords.append(password.password)
-    #     rng.shuffle(sweetwords)
+    #     sweetwords = model.generate(user_data=password, k=k)
     #     sweetword_lists.append(
     #         SweetwordList(
     #             user_id=str(idx),
@@ -162,10 +159,9 @@ def main() -> None:
         attack_stats=asdict(attack_stats),
     )
     
-    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\pcfg_results3_50k.json")
+    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\markov_results_final2.json")
 
     # print(json.dumps(asdict(stats), indent=2))
-
 
 if __name__ == "__main__":
     main()

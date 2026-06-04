@@ -102,27 +102,27 @@ from dataclasses import dataclass, asdict
 #     # ]
 
 #     model.load_data(rule_name="Targeted")
-#     res = model.generate(10, query)
+#     res = model.generate(k=100, query_list=[query])
     
 #     aa = 0
 
-def main() -> None:
+# def main() -> None:
     
-    passwords = []
-    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
-        while True:
-            try:
-                line = f.readline()
-                if not line:
-                    break
+#     passwords = []
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed.txt", "r", encoding="ascii", errors="strict") as f:
+#         while True:
+#             try:
+#                 line = f.readline()
+#                 if not line:
+#                     break
                 
-                passwords.append(line.strip())   
-            except UnicodeDecodeError:
-                continue
+#                 passwords.append(line.strip())   
+#             except UnicodeDecodeError:
+#                 continue
     
-    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed_ascii.txt", mode="w", encoding="utf-8") as f:
-        for item in passwords:
-            f.write(f"{item}\n")
+#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed_ascii.txt", mode="w", encoding="utf-8") as f:
+#         for item in passwords:
+#             f.write(f"{item}\n")
      
 # def main() -> None:
     
@@ -140,16 +140,25 @@ def main() -> None:
 #     with open("lengths.json", "w", encoding="utf-8") as handle:
 #         json.dump(res, handle, indent=2)
 
-# def main() -> None:
-           
-#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\50k_subsample\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
-#         subsample = {line.strip() for line in f if line.strip()}
+def main() -> None:
+        
+    data = []   
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
+        for line in f:
+            data.append(line.rstrip('\n'))
+            
+    random.shuffle(data)
+        
+    midpoint = len(data) // 2
 
-#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
-#         difference = [line.strip() for line in f if line.strip() and line.strip() not in subsample]
-
-#     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed_tr2.txt", mode="w", encoding="utf-8") as f:
-#         f.write("\n".join(difference) + "\n")
+    part1 = data[:midpoint]
+    part2 = data[midpoint:]
+    
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed_tr.txt", "w", encoding="utf-8") as f1:
+        f1.write("\n".join(part1) + "\n")
+        
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed_ts.txt", "w", encoding="utf-8") as f2:
+        f2.write("\n".join(part2) + "\n")
 
 if __name__ == "__main__":
     main()

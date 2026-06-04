@@ -246,6 +246,8 @@ class TrainingData:
         ##Number of valid passwords trained on
         ##Used for record keeping and debugging
         self.valid_passwords = 0
+        
+        self.structure_dict = {}
     
     
     ###################################################################################
@@ -532,10 +534,13 @@ class TrainingData:
         # Doing this a bit overboard to match it with all the other parsing
         # Also this provides a nice sanity check to make sure no errors creeped in somewhere
         items = []
-        ret_value = cur_pass.parse_base(items)
+        ret_value, sections = cur_pass.parse_base(items)
         if ret_value != RetType.STATUS_OK:
             print("Error parsing a password. There were sections that were not processed")
             return ret_value
+        
+        self.structure_dict[input_password[0]] = sections
+        
         ##--Now update the base structure list
         ret_value = self.base_structure.insert_list(items)
         if ret_value != RetType.STATUS_OK:

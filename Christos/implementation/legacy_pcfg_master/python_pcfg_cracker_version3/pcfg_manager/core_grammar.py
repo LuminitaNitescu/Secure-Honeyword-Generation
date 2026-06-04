@@ -15,6 +15,8 @@ import itertools #--Used for walking a pcfg
 from .markov_cracker import MarkovCracker, MarkovIndex
 from .guess_generation import GuessGeneration
 
+import math
+
 
 ##########################################################################################
 # Main class of this program as it represents the central grammar of the pcfg cracker
@@ -424,65 +426,132 @@ class PcfgClass:
     # -cur_index = current index to start the walk from
     # -Returns the parse tree generated
     ###################################################################################################################################################
-    def random_grammar_walk(self, cur_index):
-        ##--Find the random number to do the walk with
+    def random_grammar_walk(self, cur_index, log_p=0.0):
         random_number = random.random()
 
-        ##--Now find which transition that random number refers to
-        cur_transition = -1 #--Initialation value, also denotes an error occured if it is still -1 at the end
-        #--Order the probabilities with the first one starting at 0. So if two probs were 90%, and 10%, first would be from 0-90%
-        #--Second one would be from 90-100. The upper transition prob is "less than"
+        cur_transition = -1
         transition_prob = 0
-        for i in range(0,len(self.grammar[cur_index]['replacements'])):
-            #-The probability of the current transition
-            #-Markov is weird since we need to look up the keyspace parameter for it vs looking in the values field
+        for i in range(0, len(self.grammar[cur_index]['replacements'])):
             if self.grammar[cur_index]['replacements'][i]['function'] == 'Markov':
                 for item in self.grammar[cur_index]['replacements'][i]['values']:
                     transition_prob += self.grammar[cur_index]['replacements'][i]['prob'] * float(self.markov_cracker.keyspace[item])
-            #-Need to calculate it differently if it has values or not, (multiple repalcements packed in the same index)
             elif 'values' in self.grammar[cur_index]['replacements'][i]:
                 transition_prob = transition_prob + (self.grammar[cur_index]['replacements'][i]['prob'] * len(self.grammar[cur_index]['replacements'][i]['values']))
             else:
                 transition_prob = transition_prob + self.grammar[cur_index]['replacements'][i]['prob']
-            ##--This is the transition to take on the random walk
             if random_number < transition_prob:
                 cur_transition = i
                 break
 
-        ##--Error check to make sure some transition was found--##
         if cur_transition == -1:
-            ##--Due to rounding errors this can occur, if it looks like a rounding error, just set it to the first value--##
             if random_number > 0.99: #TODO
                 cur_transition = 0
-            ##--This is outside the bounds I'd expect a rounding error. Print details so I can track it down
             else:
-                print("transition prob:" + str(transition_prob),file=sys.stderr)
-                print("random number:" + str(random_number),file=sys.stderr)
-                print("cur_index:" + str(cur_index),file=sys.stderr)
-                print(self.grammar[cur_index]['name'],file=sys.stderr)
-                print(self.grammar[cur_index]['replacements'][0],file=sys.stderr)
-                print("Error with random walk, the probabilities of all the transitions was less than one in the grammar",file=sys.stderr)
+                print("transition prob:" + str(transition_prob), file=sys.stderr)
+                print("random number:" + str(random_number), file=sys.stderr)
+                print("cur_index:" + str(cur_index), file=sys.stderr)
+                print(self.grammar[cur_index]['name'], file=sys.stderr)
+                print(self.grammar[cur_index]['replacements'][0], file=sys.stderr)
+                print("Error with random walk, the probabilities of all the transitions was less than one in the grammar", file=sys.stderr)
                 print("I'd appreciate if you left a bug report on the github page with the above info")
                 value = input("Hit Enter")
-                return None
+                return None, float('-inf')
 
-        ##--Create the parse tree
-        parse_tree = [cur_index,cur_transition,[]]
+        # Accumulate log probability of the transition taken at this node
+        replacement = self.grammar[cur_index]['replacements'][cur_transition]
+        if replacement['function'] == 'Markov':
+            node_prob = sum(
+                replacement['prob'] * float(self.markov_cracker.keyspace[item])
+                for item in replacement['values']
+            )
+        elif 'values' in replacement:
+            node_prob = replacement['prob'] * len(replacement['values'])
+        else:
+            node_prob = replacement['prob']
 
-        ##--Check if it is a terminal
-        if self.grammar[cur_index]['replacements'][cur_transition]['is_terminal']:
-            ##-return the parse tree
-            return parse_tree
+        log_p += math.log(node_prob) if node_prob > 0 else float('-inf')
 
-        ##-Not a terminal, we need to fill out the replacements
-        for i in range(0,len(self.grammar[cur_index]['replacements'][cur_transition]['pos'])):
-            child_node = self.random_grammar_walk(self.grammar[cur_index]['replacements'][cur_transition]['pos'][i])
-            ##--Error handling to pass errors back up the recursive chain
-            if child_node == None:
-                return None
+        parse_tree = [cur_index, cur_transition, []]
+
+        if replacement['is_terminal']:
+            return parse_tree, log_p
+
+        for i in range(0, len(replacement['pos'])):
+            child_node, log_p = self.random_grammar_walk(replacement['pos'][i], log_p)
+            if child_node is None:
+                return None, float('-inf')
             parse_tree[2].append(child_node)
 
-        return parse_tree
+        return parse_tree, log_p
+
+    def get_prob(self, password, structure, start_index):
+        
+        res = 0.0
+        
+        structure_str = "".join(structure)
+        found = False
+        search_idx = 0
+        while not found and search_idx < len(self.grammar[start_index]['replacements']):
+            entry = self.grammar[start_index]['replacements'][search_idx]
+            if entry["values"][0] == structure_str:
+                found = True
+                res += math.log(entry["prob"])
+            search_idx += 1
+        if not found:
+            return 0.0
+        
+        idx = 0
+        for part in structure:
+            rule_idx = 0
+            found = False
+            search_idx = 0
+            while not found and search_idx < len(self.grammar):
+                entry = self.grammar[search_idx]
+                if entry["name"] == part[1] and entry["type"] == f"BASE_{part[0]}":
+                    found = True
+                    rule_idx = search_idx
+                search_idx += 1
+            if not found:
+                return 0.0
+            
+            found = False
+            search_idx = 0
+            while not found and search_idx < len(self.grammar[rule_idx]["replacements"]):
+                entry = self.grammar[rule_idx]["replacements"][search_idx]
+                if entry["values"][0] == password[idx:idx + int(part[1])]:
+                    found = True
+                    res += math.log(entry["prob"])
+                search_idx += 1
+            if not found:
+                return 0.0
+            
+            mask = "".join(["U" if char.isupper() else "L" for char in password[idx:idx + int(part[1])]])
+            rule_idx = 0
+            found = False
+            search_idx = 0
+            while not found and search_idx < len(self.grammar):
+                entry = self.grammar[search_idx]
+                if entry["name"] == part[1] and entry["type"] == "CAPITALIZATION":
+                    found = True
+                    rule_idx = search_idx
+                search_idx += 1
+            if not found:
+                return 0.0
+            
+            found = False
+            search_idx = 0
+            while not found and search_idx < len(self.grammar[rule_idx]["replacements"]):
+                entry = self.grammar[rule_idx]["replacements"][search_idx]
+                if entry["values"][0] == mask:
+                    found = True
+                    res += math.log(entry["prob"])
+                search_idx += 1
+            if not found:
+                return 0.0
+            
+            idx += int(part[1])
+            
+        return math.exp(res)
 
 
     ##############################################################################################################################
