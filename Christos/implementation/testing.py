@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import random
 import sys
+import csv
 
 parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 
@@ -31,9 +32,28 @@ import multiprocessing
 from typing import List, Iterable
 from tqdm import tqdm
 
-from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer import get_structures
+from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.training_data import TrainingData
+from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.ret_types import RetType
 
 worker_model = None
+
+
+def _get_structures(data, targeted=False):
+    
+    print("Calculating password structures:") 
+        
+    training_results = TrainingData(targeted)
+        
+    for i, password in enumerate(data):
+        
+        ret_value = training_results.parse(password)
+        if ret_value != RetType.STATUS_OK:
+            continue
+        
+        if (i + 1) % 10_000 == 0:
+            print(f"Progress: {i + 1:,} items processed.")
+        
+    return training_results.structure_dict
 
 def _init_worker(model_path):
     global worker_model
@@ -64,20 +84,34 @@ def main() -> None:
     passwords = []
     passwords_pure = []
     # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\50k_subsample\\rockyou_sorted_preprocessed_ascii.txt", "r", encoding="utf-8") as f:
-    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            password = line.strip()
-            if not password:
-                continue
+    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ts.txt", "r", encoding="utf-8") as f:
+    #     for line in f:
+    #         password = line.strip()
+    #         if not password:
+    #             continue
             
-            if len(passwords) > 5:
+    #         if len(passwords) >= 300000:
+    #             break
+            
+    #         # passwords.append(password)
+    #         passwords.append(UserData(password=password))
+    #         passwords_pure.append([password])
+
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\synthetic_data\synthetic_test.csv", "r", encoding="utf-8") as infile:
+
+        reader = csv.reader(infile)
+
+        next(reader, None)
+        for row in reader:
+            
+            if len(passwords) >= 300000:
                 break
             
-            # passwords.append(password)
-            passwords.append(UserData(password=password))
-            passwords_pure.append([password])
+            if row:
+                passwords.append(UserData(password=row[0], email=row[3], username=row[5], first_name=row[1], last_name=row[2], birthday=row[4]))
+                passwords_pure.append([row[0], row[3], row[5], row[1], row[2], row[4]])
 
-    # # 2. Initialize model and build sweetword lists
+    # 2. Initialize model and build sweetword lists
     # data_train = []
     # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr.txt", "r", encoding="utf-8") as f:
     #     for line in f:
@@ -87,17 +121,24 @@ def main() -> None:
             
     #         data_train.append([password])
     
+    # with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\synthetic_data\synthetic_train.csv", "r", encoding="utf-8") as infile:
+
+    #     reader = csv.reader(infile)
+
+    #     data_train = [row for row in reader if row]
+    
     # model = MarkovModel()
     # model.load_data(data=data_train)
-    model = PCFGModel()
-    model.load_data(rule_name="RockYouFinal")
+    model = TargetedPCFGModel()
+    model.load_data(rule_name="RockYouFinalTargeted")
     print("Training done.")
     
     # 3. Train attacker model
     attacker = NormalizedPWModel(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_counts.txt", 
                                       dataset_size=23136055988) 
     
-    sweetword_lists_unprocessed = model.generate(queries=passwords, k=k-1, seed=seed, structures=get_structures(passwords_pure))
+    structures = _get_structures(data=passwords_pure, targeted=True)
+    sweetword_lists_unprocessed = model.generate(queries=passwords, k=k-1, seed=seed, structures=structures)
     
     sweetword_lists = []
     for idx, sweetwords in enumerate(sweetword_lists_unprocessed):
@@ -159,7 +200,7 @@ def main() -> None:
         attack_stats=asdict(attack_stats),
     )
     
-    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\markov_results_final2.json")
+    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\pcfg_results_final.json")
 
     # print(json.dumps(asdict(stats), indent=2))
 

@@ -119,6 +119,8 @@ class MarkovModel():
         return math.exp(log_p)
     
     def generate(self, user_data: UserData, k, seed):
+        
+        #TODO: Fix parallelization, put all functions inside classes
     
         keys = list(self.starts.keys())
         probs = list(self.starts.values())
