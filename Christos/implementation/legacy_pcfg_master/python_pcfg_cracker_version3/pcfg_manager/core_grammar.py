@@ -560,8 +560,8 @@ class PcfgClass:
     ##############################################################################################################################
     def gen_random_terminal(self,pt, pii: dict = None):
         guess_generation = GuessGeneration(self.grammar, self.markov_cracker, pt)
-        guess = guess_generation.get_random_guess(pii)
-        return guess
+        guess, prob = guess_generation.get_random_guess(pii)
+        return guess, prob
 
 
     #=================================================================================================================================================#

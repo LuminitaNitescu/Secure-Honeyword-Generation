@@ -17,13 +17,16 @@ class PCFGModel():
             train(data=data, rule_name=rule_name)
         self.rule_name = rule_name
      
-    def generate(self, queries: list[UserData], k, seed, structures: dict[str, str] = None):
+    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, str]=None):
         
-        queries_processed = []
-        for query in queries:
-            queries_processed.append([query.password, structures[query.password], None])
-        
-        return generate(queries=queries_processed, k=k-1, rule_name=self.rule_name, seed=seed)
+        if mode == "honeywords":
+            queries_processed = []
+            for query in queries:
+                queries_processed.append([query.password, structures[query.password], None])
+            
+            return generate(queries=queries_processed, k=k-1, rule_name=self.rule_name, seed=seed)
+        else:
+            return generate(k=k, rule_name=self.rule_name, mode="passwords")
     
 class TargetedPCFGModel():
     
@@ -37,11 +40,15 @@ class TargetedPCFGModel():
             train(data=data, rule_name=rule_name, targeted=True)
         self.rule_name = rule_name
      
-    def generate(self, query_list: list, k, seed, structures: dict[str, str] = None):
+    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, str] = None):
         
         queries_processed = []
-        for query in query_list:
+        for query in queries:
             pw = query.password
+            
+            if pw not in structures:
+                continue
+            
             fn = query.first_name
             ln = query.last_name
             bd = query.birthday[0:2]

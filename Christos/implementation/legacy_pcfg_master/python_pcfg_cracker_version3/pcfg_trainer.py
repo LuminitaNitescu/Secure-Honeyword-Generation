@@ -463,22 +463,3 @@ def train(data, smoothing = 0.01, coverage = 1.0, rule_name = "Default", targete
         ascii_fail()
         print("Exiting...")
         return
-    
-def get_structures(data, targeted=False):
-    
-    print("Calculating password structures:") 
-        
-    training_results = TrainingData(targeted)
-    
-    progress_bar = MeasurementStatus(len(data),display_status = True)
-    
-    for password in data:
-        
-        ret_value = training_results.parse(password)
-        if ret_value != RetType.STATUS_OK:
-            ascii_fail()
-            print("Exiting...")
-            return
-        progress_bar.update_status()
-        
-    return training_results.structure_dict

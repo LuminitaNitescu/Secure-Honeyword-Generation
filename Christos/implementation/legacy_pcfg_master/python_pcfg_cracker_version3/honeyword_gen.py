@@ -239,6 +239,22 @@ _worker_pcfg = None
 def _init_worker(pcfg):
     global _worker_pcfg
     _worker_pcfg = pcfg
+    
+def _generate_password(args):
+
+    idx, cur_index = args
+
+    local_errors = 0
+    while True:
+        try:
+            parse_tree, p_structure = _worker_pcfg.random_grammar_walk(cur_index)
+            password, p_replacements = _worker_pcfg.gen_random_terminal(parse_tree)
+            
+            if len(password) >= 1:
+                return password, local_errors       
+                
+        except Exception as msg:
+            local_errors += 1
 
 def _generate_honeywords_for_single_password(args):
 
@@ -268,8 +284,6 @@ def _generate_honeywords_for_single_password(args):
                 honeywords.append(honeyword)
                 honeywords_left -= 1
                 
-            #TODO Append actual password with probability and shuffle
-                
         except Exception as msg:
             local_errors += 1
     
@@ -277,7 +291,7 @@ def _generate_honeywords_for_single_password(args):
             
     return res, local_errors
 
-def generate(queries: list[list[str]], k, seed, rule_name = "Default"):
+def generate(k, rule_name, queries: list[list[str]]=None, seed: int=None, mode="honeywords"):
     
     ##--Information about this program--##
     management_vars = {
@@ -334,24 +348,42 @@ def generate(queries: list[list[str]], k, seed, rule_name = "Default"):
     errors_occured = 0
     
     ##--Generate each honeyword  
-    honeywords = []
+    res = []
     errors_occured = 0
+    if mode == "honeywords":
     
-    tasks = [
-        (idx, query, k, start_index, seed + idx)
-        for idx, query in enumerate(queries)
-    ]
+        tasks = [
+            (idx, query, k, start_index, seed + idx)
+            for idx, query in enumerate(queries)
+        ]
 
-    with multiprocessing.Pool(initializer=_init_worker, initargs=(pcfg,)) as pool:
-        results = tqdm(
-            pool.imap(_generate_honeywords_for_single_password, tasks),
-            total=len(tasks),
-            desc="Generating Honeywords"
-        )
+        with multiprocessing.Pool(initializer=_init_worker, initargs=(pcfg,)) as pool:
+            results = tqdm(
+                pool.imap(_generate_honeywords_for_single_password, tasks),
+                total=len(tasks),
+                desc="Generating Honeywords"
+            )
+            
+            for honeyword_run, local_errors in results:
+                res.append(honeyword_run)
+                errors_occured += local_errors
+    else:
         
-        for honeyword_run, local_errors in results:
-            honeywords.append(honeyword_run)
-            errors_occured += local_errors
+        tasks = [
+            (idx, start_index)
+            for idx in range(k)
+        ]
+        
+        with multiprocessing.Pool(initializer=_init_worker, initargs=(pcfg,)) as pool:
+            results = tqdm(
+                pool.imap(_generate_password, tasks),
+                total=k,
+                desc="Generating Honeywords"
+            )
+            
+            for password, local_errors in results:
+                res.append(password)
+                errors_occured += local_errors
     
     if errors_occured != 0:
         print()
@@ -363,4 +395,4 @@ def generate(queries: list[list[str]], k, seed, rule_name = "Default"):
         print("This is usually caused by your terminal not supporting the character encoding of a specific honeyword")
         print("For example, the honeyword may have contained a letter in a language your terminal doesn't support")
    
-    return honeywords
+    return res
