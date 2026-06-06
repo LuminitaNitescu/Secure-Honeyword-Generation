@@ -266,13 +266,12 @@ def _generate_honeywords_for_single_password(args):
     honeywords = [password]
     res = [[password, _worker_pcfg.get_prob(password, structure, start_index)]]
     
-    honeywords_left = k
     cur_index = start_index
     local_errors = 0
     
     rng = random.Random(seed)
     
-    while honeywords_left >= 0:
+    while len(honeywords) < k:
         try:
             parse_tree, p_structure = _worker_pcfg.random_grammar_walk(cur_index)
             honeyword, p_replacements = _worker_pcfg.gen_random_terminal(parse_tree, query[2] if len(query) > 2 else None)
@@ -282,7 +281,6 @@ def _generate_honeywords_for_single_password(args):
             if (len(honeyword) >= 1 and honeyword not in honeywords):
                 res.append([honeyword, math.exp(p_structure + p_replacements)])
                 honeywords.append(honeyword)
-                honeywords_left -= 1
                 
         except Exception as msg:
             local_errors += 1

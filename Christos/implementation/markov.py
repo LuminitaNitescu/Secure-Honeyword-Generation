@@ -26,26 +26,27 @@ def _generate_for_single_password(args):
 
     idx, query, k, seed = args
     
-    keys = list(_worker_model.starts.keys())
-    probs = list(_worker_model.starts.values())
+    keys = _worker_model.start_preprocessed[0]
+    probs = _worker_model.start_preprocessed[1]
     rng = random.Random(seed)
 
     res = [[query.password, _worker_model.prob_pw(word=query.password)]]
-    honeywords = [query.password]
-    while len(res) < k-1:         
+    honeywords = {query.password}
+    while len(res) < k:         
         cur = rng.choices(keys, weights=probs, k=1)[0]
-        hw_parts = []
-        hw_parts.extend(cur)
+        hw_parts = list(cur)
         
         log_p = math.log(_worker_model.starts[cur])
         
         queue = deque(cur, maxlen=4)
         # while len(hw_parts) < len(user_data.password) and queue:
         while queue:
-            chars = _worker_model.chain["".join(queue)]
-            nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
+            lookup_key = "".join(queue)
             
-            log_p += math.log(chars[nxt])
+            keys_c, weights_c = _worker_model.chain_preprocessed[lookup_key]
+            nxt = rng.choices(keys_c, weights=weights_c, k=1)[0]
+            
+            log_p += math.log(_worker_model.chain[lookup_key][nxt])
             
             if nxt == '\n':
                 break
@@ -56,9 +57,11 @@ def _generate_for_single_password(args):
         
         if len(hw) >= 1 and hw not in honeywords:
             res.append([hw, math.exp(log_p)])
-            honeywords.append(hw)
+            honeywords.add(hw)
         
     rng.shuffle(res)
+    
+    return res
 
 class MarkovModel():
     
@@ -70,9 +73,20 @@ class MarkovModel():
                 model = pickle.load(f)
             self.chain = model['chain']
             self.starts = model['starts']
+            
+            self._preprocess_chain()
         else:
             self.starts = None
             self.chain = None
+
+    def _preprocess_chain(self):
+        
+        self.chain_preprocessed = {
+            k: (list(v.keys()), list(v.values()))
+            for k, v in self.chain.items()
+        }
+        
+        self.start_preprocessed = (list(self.starts.keys()), list(self.starts.values()))
 
     def _process_password(self, i):
     
@@ -128,7 +142,9 @@ class MarkovModel():
         for chain in self.chain.keys():
             for nxt in self.chain[chain].keys():
                 self.chain[chain][nxt] = self.chain[chain][nxt] / total_chain[chain]
-    
+                
+        self._preprocess_chain()
+        
         os.makedirs('./Christos/trained_models', exist_ok=True)
         with open('./Christos/trained_models/markov.pickle', 'wb') as f:
             pickle.dump({"starts": self.starts, "chain": self.chain}, f)
@@ -178,7 +194,7 @@ class MarkovModel():
 
         with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
             results = tqdm(
-                pool.imap(_generate_for_single_password, tasks),
+                pool.imap(_generate_for_single_password, tasks, chunksize=32),
                 total=len(tasks),
                 desc="Generating Honeywords"
             )
@@ -239,7 +255,7 @@ def _generate_for_single_password_targeted(args):
     keys   = list(_worker_model.starts.keys())
     probs  = list(_worker_model.starts.values())
 
-    while len(res) < k-1:
+    while len(res) < k:
         cur = rng.choices(keys, weights=probs, k=1)[0]
         hw_parts = []
         for i in cur:

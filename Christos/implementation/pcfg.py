@@ -22,9 +22,14 @@ class PCFGModel():
         if mode == "honeywords":
             queries_processed = []
             for query in queries:
-                queries_processed.append([query.password, structures[query.password], None])
+                pw = query.password
+                
+                if pw not in structures:
+                    continue
+                
+                queries_processed.append([pw, structures[pw], None])
             
-            return generate(queries=queries_processed, k=k-1, rule_name=self.rule_name, seed=seed)
+            return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed)
         else:
             return generate(k=k, rule_name=self.rule_name, mode="passwords")
     
@@ -88,4 +93,4 @@ class TargetedPCFGModel():
                 
             queries_processed.append([pw, structures[pw], tags])
         
-        return generate(queries=queries_processed, k=k-1, rule_name=self.rule_name, seed=seed)
+        return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed)
