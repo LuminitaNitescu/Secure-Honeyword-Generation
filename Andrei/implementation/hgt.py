@@ -198,19 +198,19 @@ class HoneywordGenerator:
 		self.params = tweak_params or TweakParams()
 
 	def generate(self, password: str) -> List[str]:
-		# return _chaff_by_tweaking(
-		# 	[password],
-		# 	self.k,
-		# 	self.l,
-		# 	self.rng,
-		# 	self.params,	
-		# )
-
-		return chaffing_with_a_hybrid_model(
-			password,
+		return _chaff_by_tweaking(
+			[password],
 			self.k,
 			self.l,
-			self.backend,
 			self.rng,
-			self.params,
+			self.params,	
 		)
+
+		# return chaffing_with_a_hybrid_model(
+		# 	password,
+		# 	self.k,
+		# 	self.l,
+		# 	self.backend,
+		# 	self.rng,
+		# 	self.params,
+		# )

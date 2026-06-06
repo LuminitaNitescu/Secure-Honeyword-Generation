@@ -43,7 +43,7 @@ DATASET_MAP = {
 }
 DATASET_SIZE_MAP = {
 	"4_policy_counts": 15089929449866392,
-	"hashmob_counts": 23136055988,
+	"hashmob_counts": 23_136_055_988,
 }
 
 
@@ -276,7 +276,8 @@ def main() -> None:
 
 	outputs_dir = Path("outputs")
 	outputs_dir.mkdir(parents=True, exist_ok=True)
-	base_name = f"{args.out_prefix}_{args.attacker_dataset}_k{args.k}_l{args.l}"
+	target_dataset_name = target_path.stem.replace("_sorted_preprocessed", "")
+	base_name = f"{target_dataset_name}_k{args.k}_t1{args.t1}_t2{args.t2}_seed{args.seed}"
 	output_path = outputs_dir / f"{base_name}.json"
 	write_stats_json(stats, str(output_path))
 

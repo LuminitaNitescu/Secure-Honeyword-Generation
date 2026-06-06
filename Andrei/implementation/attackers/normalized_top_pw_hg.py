@@ -170,8 +170,11 @@ class NormalizedTopPWModelHG:
         k: int,
     ) -> Tuple[Dict[str, Dict[str, float]], float, int]:
         prob_cache: Dict[str, Dict[str, float]] = {}
-        max_prob = 0.0
+        
+        total_prob = 0.0
+        valid_user_count = 0
         total_nonzero_prob_words = 0
+        
         for entry in entries:
             entry_probs = {word: self._base_prob(word) for word in entry.sweetwords}
             prob_cache[entry.user_id] = entry_probs
@@ -179,14 +182,19 @@ class NormalizedTopPWModelHG:
 
             if entry.real_password is None:
                 continue
+
             total = sum(entry_probs.values())
             if total <= 0:
                 prob = 1.0 / k
             else:
                 prob = entry_probs.get(entry.real_password, 0.0) / total
-            if prob > max_prob:
-                max_prob = prob
-        return prob_cache, max_prob, total_nonzero_prob_words
+            
+            total_prob += prob
+            valid_user_count += 1
+
+        empirical_epsilon_flatness = (total_prob / valid_user_count) if valid_user_count > 0 else 0.0
+
+        return prob_cache, empirical_epsilon_flatness, total_nonzero_prob_words
 
     def _crack_with_probs(
         self,
