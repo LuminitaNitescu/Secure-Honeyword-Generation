@@ -9,28 +9,56 @@ from util import *
 import math
 from tqdm import tqdm
 import random
+import multiprocessing
 
 
-def _process_password(i):
+_chars = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
+            '\x08', '\x0b', '\x0c', '\x0e', '\x0f', '\x10', '\x11', '\x12', 
+            '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19']
+
+_worker_model = None
+
+def _init_worker(model):
+    global _worker_model
+    _worker_model = model
+
+def _generate_for_single_password(args):
+
+    idx, query, k, seed = args
     
-    i = i[0]
+    keys = list(_worker_model.starts.keys())
+    probs = list(_worker_model.starts.values())
+    rng = random.Random(seed)
+
+    res = [[query.password, _worker_model.prob_pw(word=query.password)]]
+    honeywords = [query.password]
+    while len(res) < k-1:         
+        cur = rng.choices(keys, weights=probs, k=1)[0]
+        hw_parts = []
+        hw_parts.extend(cur)
+        
+        log_p = math.log(_worker_model.starts[cur])
+        
+        queue = deque(cur, maxlen=4)
+        # while len(hw_parts) < len(user_data.password) and queue:
+        while queue:
+            chars = _worker_model.chain["".join(queue)]
+            nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
             
-    chain  = defaultdict(list)
-    starts = []
-
-    if len(i) < 4:
-        starts.append(i)
-        chain[tuple(i)].append('\n')
-    else:
-        i += '\n'
-        starts.append(i[:4])
-
-        window = deque(i[:4], maxlen=4)
-        for ch in i[4:]:
-            chain[tuple(window)].append(ch)
-            window.append(ch) 
-    
-    return chain, starts
+            log_p += math.log(chars[nxt])
+            
+            if nxt == '\n':
+                break
+            
+            queue.extend(nxt)
+            hw_parts.extend(nxt)
+        hw = "".join(hw_parts)
+        
+        if len(hw) >= 1 and hw not in honeywords:
+            res.append([hw, math.exp(log_p)])
+            honeywords.append(hw)
+        
+    rng.shuffle(res)
 
 class MarkovModel():
     
@@ -46,13 +74,34 @@ class MarkovModel():
             self.starts = None
             self.chain = None
 
+    def _process_password(self, i):
+    
+        i = i[0]
+                
+        chain  = defaultdict(list)
+        starts = []
+
+        if len(i) < 4:
+            starts.append(i)
+            chain[tuple(i)].append('\n')
+        else:
+            i += '\n'
+            starts.append(i[:4])
+
+            window = deque(i[:4], maxlen=4)
+            for ch in i[4:]:
+                chain[tuple(window)].append(ch)
+                window.append(ch) 
+        
+        return chain, starts
+
     def load_data(self, data):
         self.data = data
         
         with Pool() as pool:
             results = list(
                 tqdm(
-                    pool.imap(_process_password, self.data),
+                    pool.imap(self._process_password, self.data),
                     total=len(self.data),
                     desc="Markov model training: Password processing."
                 )
@@ -118,47 +167,124 @@ class MarkovModel():
 
         return math.exp(log_p)
     
-    def generate(self, user_data: UserData, k, seed):
+    def generate(self, k: int, queries: list[UserData]=None, seed: int=None):
         
-        #TODO: Fix parallelization, put all functions inside classes
-    
-        keys = list(self.starts.keys())
-        probs = list(self.starts.values())
-        rng = random.Random(seed)
-    
-        res = [[user_data.password, self.prob_pw(word=user_data.password)]]
-        honeywords = [user_data.password]
-        while len(res) < k-1:         
-            cur = rng.choices(keys, weights=probs, k=1)[0]
-            hw_parts = []
-            hw_parts.extend(cur)
+        res = []
+        
+        tasks = [
+            (idx, query, k, seed + idx)
+            for idx, query in enumerate(queries)
+        ]
+
+        with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
+            results = tqdm(
+                pool.imap(_generate_for_single_password, tasks),
+                total=len(tasks),
+                desc="Generating Honeywords"
+            )
             
-            log_p = math.log(self.starts[cur])
-            
-            queue = deque(cur, maxlen=4)
-            # while len(hw_parts) < len(user_data.password) and queue:
-            while queue:
-                chars = self.chain["".join(queue)]
-                nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
-                
-                log_p += math.log(chars[nxt])
-                
-                if nxt == '\n':
-                    break
-                
-                queue.extend(nxt)
-                hw_parts.extend(nxt)
-            hw = "".join(hw_parts)
-            
-            if len(hw) >= 1 and hw not in honeywords:
-                res.append([hw, math.exp(log_p)])
-                honeywords.append(hw)
-            
-        rng.shuffle(res)
+            for honeyword_run in results:
+                res.append(honeyword_run)
                
         return res
 
-def process_password_targeted(i, chars):
+
+def _generate_for_single_password_targeted(args):
+
+    idx, query, k, seed = args
+    
+    rng = random.Random(seed)
+      
+    pw = query.password  
+    fn = query.first_name
+    ln = query.last_name
+    bd = query.birthday[0:2]
+    bm = query.birthday[2:4]
+    by = query.birthday[4:8]
+    un = query.username
+    em = query.email.split("@")[0]
+    
+    tags = dict()
+    tags[_chars[0]] = f"{fn}{ln}"
+    tags[_chars[1]] = f"{fn[0]}{ln[0]}"
+    tags[_chars[2]] = ln
+    tags[_chars[3]] = fn
+    tags[_chars[4]] = f"{fn[0]}{ln}"
+    tags[_chars[5]] = f"{ln}{fn[0]}"
+    tags[_chars[6]] = f"{ln[0].upper()}{ln[1:]}"
+    tags[_chars[7]] = f"{by}{bm}{bd}"
+    tags[_chars[8]] = f"{bm}{bd}{by}"
+    tags[_chars[9]] = f"{bd}{bm}{by}"
+    tags[_chars[10]] = f"{bd}{bm}"
+    tags[_chars[11]] = by
+    tags[_chars[12]] = f"{by}{bm}"
+    tags[_chars[13]] = f"{bm}{by}"
+    tags[_chars[14]] = f"{by[2:]}{bm}{bd}"
+    tags[_chars[15]] = f"{bm}{bd}{by[2:]}"
+    tags[_chars[16]] = f"{bd}{bm}{by[2:]}"
+    tags[_chars[17]] = un
+    tags[_chars[18]] = em
+    regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+    if regex:
+        tags[_chars[19]] = regex.group(1)
+        tags[_chars[20]] = regex.group(2)
+    regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+    if regex:
+        tags[_chars[21]] = regex.group(1)
+        tags[_chars[22]] = regex.group(2)
+    
+    res = [[pw, _worker_model.prob_pw(pw, query)]]
+    honeywords = [pw]
+
+    keys   = list(_worker_model.starts.keys())
+    probs  = list(_worker_model.starts.values())
+
+    while len(res) < k-1:
+        cur = rng.choices(keys, weights=probs, k=1)[0]
+        hw_parts = []
+        for i in cur:
+            hw_parts.extend(tags.get(i, i))
+        
+        log_p = math.log(_worker_model.starts[cur])
+
+        queue = deque(cur, maxlen=4)
+        while queue:
+            chars = _worker_model.chain["".join(queue)]
+            nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
+            
+            log_p += math.log(chars[nxt])
+            
+            if nxt == '\n':
+                break
+            
+            queue.extend(nxt)
+            hw_parts.extend(tags.get(nxt, nxt))
+
+        hw = "".join(hw_parts)
+        
+        if len(hw) >= 1 and hw not in honeywords:
+            res.append([hw, math.exp(log_p)])
+            honeywords.append(hw)
+            
+    rng.shuffle(res)
+            
+    return res
+
+class TargetedMarkovModel():
+    
+    def __init__(self, path=None):
+        self.data = None
+        
+        if path:
+            with open(path, 'rb') as f:
+                model = pickle.load(f)
+            self.chain = model['chain']
+            self.starts = model['starts']
+        else:
+            self.starts = None
+            self.chain = None
+    
+    def _process_password(self, i, chars):
             
             chain  = defaultdict(list)
             starts = []
@@ -215,31 +341,13 @@ def process_password_targeted(i, chars):
                     window.append(ch)       
             
             return chain, starts 
-
-class TargetedMarkovModel():
-    
-    def __init__(self, path=None):
-        self.data = None
-        
-        if path:
-            with open(path, 'rb') as f:
-                model = pickle.load(f)
-            self.chain = model['chain']
-            self.starts = model['starts']
-        else:
-            self.starts = None
-            self.chain = None
-        
-        self.chars = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
-                                        '\x08', '\x0b', '\x0c', '\x0e', '\x0f', '\x10', '\x11', '\x12', 
-                                        '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19']
         
     def load_data(self, data):
         self.data = data 
         
         with Manager() as manager:
             shared_list = manager.list(self.chars)
-            fn = partial(process_password_targeted, shared_list)
+            fn = partial(self._process_password, shared_list)
             with Pool() as pool:
                 results = pool.map(fn, self.data)
             
@@ -339,80 +447,23 @@ class TargetedMarkovModel():
 
         return math.exp(log_p) 
      
-    def generate(self, user_data: UserData, k, seed):
+    def generate(self, k: int, queries: list[UserData]=None, seed: int=None):
         
-        rng = random.Random(seed)
+        res = []
         
-        fn = user_data.first_name
-        ln = user_data.last_name
-        bd = user_data.birthday[0:2]
-        bm = user_data.birthday[2:4]
-        by = user_data.birthday[4:8]
-        un = user_data.username
-        em = user_data.email.split("@")[0]
-        
-        tags = dict()
-        tags[self.chars[0]] = f"{fn}{ln}"
-        tags[self.chars[1]] = f"{fn[0]}{ln[0]}"
-        tags[self.chars[2]] = ln
-        tags[self.chars[3]] = fn
-        tags[self.chars[4]] = f"{fn[0]}{ln}"
-        tags[self.chars[5]] = f"{ln}{fn[0]}"
-        tags[self.chars[6]] = f"{ln[0].upper()}{ln[1:]}"
-        tags[self.chars[7]] = f"{by}{bm}{bd}"
-        tags[self.chars[8]] = f"{bm}{bd}{by}"
-        tags[self.chars[9]] = f"{bd}{bm}{by}"
-        tags[self.chars[10]] = f"{bd}{bm}"
-        tags[self.chars[11]] = by
-        tags[self.chars[12]] = f"{by}{bm}"
-        tags[self.chars[13]] = f"{bm}{by}"
-        tags[self.chars[14]] = f"{by[2:]}{bm}{bd}"
-        tags[self.chars[15]] = f"{bm}{bd}{by[2:]}"
-        tags[self.chars[16]] = f"{bd}{bm}{by[2:]}"
-        tags[self.chars[17]] = un
-        tags[self.chars[18]] = em
-        regex = re.search(r"([a-zA-Z]+)(\d+)", un)
-        if regex:
-            tags[self.chars[19]] = regex.group(1)
-            tags[self.chars[20]] = regex.group(2)
-        regex = re.search(r"([a-zA-Z]+)(\d+)", em)
-        if regex:
-            tags[self.chars[21]] = regex.group(1)
-            tags[self.chars[22]] = regex.group(2)
-        
-        res = [[user_data.password, self.prob_pw(user_data.password, user_data)]]
-        honeywords = [user_data.password]
+        tasks = [
+            (idx, query, k, seed + idx)
+            for idx, query in enumerate(queries)
+        ]
 
-        keys   = list(self.starts.keys())
-        probs  = list(self.starts.values())
-
-        while len(res) < k-1:
-            cur = rng.choices(keys, weights=probs, k=1)[0]
-            hw_parts = []
-            for i in cur:
-                hw_parts.extend(tags.get(i, i))
+        with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
+            results = tqdm(
+                pool.imap(_generate_for_single_password_targeted, tasks),
+                total=len(tasks),
+                desc="Generating Honeywords"
+            )
             
-            log_p = math.log(self.starts[cur])
-
-            queue = deque(cur, maxlen=4)
-            while queue:
-                chars = self.chain["".join(queue)]
-                nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
-                
-                log_p += math.log(chars[nxt])
-                
-                if nxt == '\n':
-                    break
-                
-                queue.extend(nxt)
-                hw_parts.extend(tags.get(nxt, nxt))
-
-            hw = "".join(hw_parts)
-            
-            if len(hw) >= 1 and hw not in honeywords:
-                res.append([hw, math.exp(log_p)])
-                honeywords.append(hw)
-                
-        rng.shuffle(res)
-                
+            for honeyword_run in results:
+                res.append(honeyword_run)
+               
         return res
