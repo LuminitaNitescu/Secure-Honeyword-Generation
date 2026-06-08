@@ -1,0 +1,11 @@
+# Datasets
+datasets/*.txt
+datasets/*.json
+
+# Database files
+implementation/*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
