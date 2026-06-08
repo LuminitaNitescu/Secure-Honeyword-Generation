@@ -1,0 +1,4 @@
+DEFAULT_K = 20
+DEFAULT_L = 10
+DEFAULT_SEED = 67
+DEFAULT_MODEL_PATH = "honeygen_models/model_trained_on_rockyou_500_epochs.bin"
