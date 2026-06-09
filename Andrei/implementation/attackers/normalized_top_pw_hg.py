@@ -171,31 +171,37 @@ class NormalizedTopPWModelHG:
     ) -> Tuple[Dict[str, Dict[str, float]], float, int]:
         prob_cache: Dict[str, Dict[str, float]] = {}
         
-        total_prob = 0.0
+        valid_user_count = 0
+        total_nonzero_prob_words = 0
+        
+        prob_cache: Dict[str, Dict[str, float]] = {}
+    
+        successful_guesses = 0.0
         valid_user_count = 0
         total_nonzero_prob_words = 0
         
         for entry in entries:
             entry_probs = {word: self._base_prob(word) for word in entry.sweetwords}
             prob_cache[entry.user_id] = entry_probs
+            
             total_nonzero_prob_words += sum(1 for prob in entry_probs.values() if prob > 0)
 
             if entry.real_password is None:
                 continue
-
-            total = sum(entry_probs.values())
-            if total <= 0:
-                prob = 1.0 / k
-            else:
-                prob = entry_probs.get(entry.real_password, 0.0) / total
             
-            total_prob += prob
             valid_user_count += 1
 
-        empirical_epsilon_flatness = (total_prob / valid_user_count) if valid_user_count > 0 else 0.0
+            max_prob = max(entry_probs.values())
+            
+            best_guesses = [word for word, prob in entry_probs.items() if prob == max_prob]
+            
 
-        return prob_cache, empirical_epsilon_flatness, total_nonzero_prob_words
+            if entry.real_password in best_guesses:
+                successful_guesses += (1.0 / len(best_guesses))
 
+        model_success_rate = (successful_guesses / valid_user_count) if valid_user_count > 0 else 0.0
+
+        return prob_cache, model_success_rate, total_nonzero_prob_words
     def _crack_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
