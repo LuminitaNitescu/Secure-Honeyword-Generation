@@ -4,6 +4,13 @@ set -euo pipefail
 # Tweakable parameters
 VENV="$PWD/.venv"
 TARGET_DATASET="data/50k_subsample/rockyou_sorted_preprocessed.txt"
+# "data/50k_subsample/rockyou_sorted_preprocessed.txt"
+# "data/50k_subsample/dropbox_sorted_preprocessed.txt"
+# "data/50k_subsample/linkedin_sorted_preprocessed.txt"
+# data/50k_subsample/yahoo_sorted_preprocessed.txt
+# "data/50k_subsample/chegg-com_sorted_preprocessed.txt"
+# "data/50k_subsample/dubsmash-com_sorted_preprocessed.txt"
+# "data/50k_subsample/youku_sorted_preprocessed.txt"
 ATTACKER_DATASET="hashmob_counts"   # chegg-com | dropbox | linkedin | yahoo | all
 MODEL_PATH="honeygen_models/model_trained_on_rockyou_500_epochs.bin"
 K=20
