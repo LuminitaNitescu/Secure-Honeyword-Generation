@@ -258,7 +258,7 @@ def _generate_password(args):
 
 def _generate_honeywords_for_single_password(args):
 
-    idx, query, k, start_index, seed = args
+    idx, query, k, start_index, seed, replacement = args
     
     password = query[0]
     structure = query[1]
@@ -274,7 +274,7 @@ def _generate_honeywords_for_single_password(args):
     while len(honeywords) < k:
         try:
             parse_tree, p_structure = _worker_pcfg.random_grammar_walk(cur_index)
-            honeyword, p_replacements = _worker_pcfg.gen_random_terminal(parse_tree, query[2] if len(query) > 2 else None)
+            honeyword, p_replacements = _worker_pcfg.gen_random_terminal(parse_tree, query[2] if len(query) > 2 else None, replacement)
             
             # print(str(honeyword))
             
@@ -289,7 +289,7 @@ def _generate_honeywords_for_single_password(args):
             
     return res, local_errors
 
-def generate(k, rule_name, queries: list[list[str]]=None, seed: int=None, mode="honeywords"):
+def generate(k, rule_name, queries: list[list[str]]=None, seed: int=None, mode="honeywords", replacement: bool = False):
     
     ##--Information about this program--##
     management_vars = {
@@ -351,7 +351,7 @@ def generate(k, rule_name, queries: list[list[str]]=None, seed: int=None, mode="
     if mode == "honeywords":
     
         tasks = [
-            (idx, query, k, start_index, seed + idx)
+            (idx, query, k, start_index, seed + idx, replacement)
             for idx, query in enumerate(queries)
         ]
 

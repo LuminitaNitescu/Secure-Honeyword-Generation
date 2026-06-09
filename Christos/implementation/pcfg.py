@@ -45,7 +45,7 @@ class TargetedPCFGModel():
             train(data=data, rule_name=rule_name, targeted=True)
         self.rule_name = rule_name
      
-    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, str] = None):
+    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, str] = None, replacement: bool = False):
         
         queries_processed = []
         for query in queries:
@@ -93,4 +93,4 @@ class TargetedPCFGModel():
                 
             queries_processed.append([pw, structures[pw], tags])
         
-        return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed)
+        return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed, replacement = replacement)

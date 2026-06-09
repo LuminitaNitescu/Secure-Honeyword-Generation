@@ -16,17 +16,29 @@ import re
 
 def get_random_birthdate_choice(by: str, bm: str, bd: str) -> str:
 
+    # choices_bd = [
+    #     f"{by}{bm}{bd}",
+    #     f"{bm}{bd}{by}",
+    #     f"{bd}{bm}{by}",
+    #     f"{bd}{bm}",
+    #     by,
+    #     f"{by}{bm}",
+    #     f"{bm}{by}",
+    #     f"{by[2:]}{bm}{bd}",
+    #     f"{bm}{bd}{by[2:]}",
+    #     f"{bd}{bm}{by[2:]}",
+    # ]
     choices_bd = [
-        f"{by}{bm}{bd}",
-        f"{bm}{bd}{by}",
-        f"{bd}{bm}{by}",
-        f"{bd}{bm}",
-        by,
-        f"{by}{bm}",
-        f"{bm}{by}",
-        f"{by[2:]}{bm}{bd}",
-        f"{bm}{bd}{by[2:]}",
-        f"{bd}{bm}{by[2:]}",
+        '\x00',
+        '\x01',
+        '\x02',
+        '\x03',
+        '\x04',
+        '\x05',
+        '\x06',
+        '\x07',
+        '\x08',
+        '\x0b',
     ]
     return random.choice(choices_bd)
 
@@ -34,22 +46,36 @@ def get_random_birthdate_choice(by: str, bm: str, bd: str) -> str:
 # --- Case 1: Username Split ---
 def get_random_username_choice(un: str) -> str:
 
-    regex = re.search(r"([a-zA-Z]+)(\d+)", un)
-    choices = [un, regex.group(1), regex.group(2)]
+    # regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+    # choices = [un, regex.group(1), regex.group(2)]
+    choices = [
+        '\x0c',
+        '\x0e',
+        '\x0f'
+    ]
     return random.choice(choices)
 
 
 # --- Case 2: Name Variations ---
 def get_random_name_choice(fn: str, ln: str) -> str:
 
+    # choices = [
+    #     f"{fn}{ln}",
+    #     f"{fn[0]}{ln[0]}",
+    #     ln,
+    #     fn,
+    #     f"{fn[0]}{ln}",
+    #     f"{ln}{fn[0]}",
+    #     f"{ln[0].upper()}{ln[1:]}",
+    # ]
     choices = [
-        f"{fn}{ln}",
-        f"{fn[0]}{ln[0]}",
-        ln,
-        fn,
-        f"{fn[0]}{ln}",
-        f"{ln}{fn[0]}",
-        f"{ln[0].upper()}{ln[1:]}",
+        '\x10',
+        '\x11',
+        '\x12',
+        '\x13',
+        '\x14',
+        '\x15',
+        '\x16'
     ]
     return random.choice(choices)
 
@@ -57,55 +83,60 @@ def get_random_name_choice(fn: str, ln: str) -> str:
 # --- Case 3: Email Split ---
 def get_random_email_choice(em: str) -> str:
 
-    regex = re.search(r"([a-zA-Z]+)(\d+)", em)
-    choices = [em, regex.group(1), regex.group(2)]
+    # regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+    # choices = [em, regex.group(1), regex.group(2)]
+    choices = [
+        '\x17',
+        '\x18',
+        '\x19'
+    ]
     return random.choice(choices)
 
 def gen_synthetic_data():
     
-    # passwords = []
-    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_tr2_ascii.txt", "r", encoding="utf-8") as f:
-    #     for line in f:
-    #         password = line.strip()
-    #         if not password:
-    #             continue
-
-    #         passwords.append([password])
-    
-    total_rows = 7_000_000
-    filename = "synthetic2.csv"
-    
-    # model = PCFGModel()
-    # model.load_data(rule_name="PasswordGenerator")
-    
-    # passwords_gen = model.generate(k=total_rows, mode="passwords")
-    
-    # with open("synth_pass.csv", mode="w", newline="", encoding="utf-8") as f:
-    #     writer = csv.writer(f)
-        
-    #     for i, password in enumerate(passwords_gen):
-            
-    #         writer.writerow(password)
-            
-    #         if (i + 1) % 10_000 == 0:
-    #             print(f"Progress: {i + 1:,} rows written.")
-    
-    passwords_gen = []
-    with open("synth_pass.csv", "r", encoding="utf-8") as infile:
-
-        reader = csv.reader(infile)
-
-        for row in reader:
-            if not row:
+    passwords = []
+    with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_sorted_preprocessed_ascii.txt", "r", encoding="utf-8") as f:
+        for line in f:
+            password = line.strip()
+            if not password:
                 continue
 
-            passwords_gen.append("".join(row))
+            passwords.append([password])
+    
+    total_rows = len(passwords)
+    filename = "synthetic_train2.csv"
+    
+    model = PCFGModel()
+    model.load_data(data=passwords, rule_name="PasswordGeneratorNew")
+    
+    passwords_gen = model.generate(k=total_rows, mode="passwords")
+    
+    with open("synth_pass.csv", mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        
+        for i, password in enumerate(passwords_gen):
+            
+            writer.writerow(password)
+            
+            if (i + 1) % 10_000 == 0:
+                print(f"Progress: {i + 1:,} rows written.")
+    
+    # passwords_gen = []
+    # with open("synth_pass.csv", "r", encoding="utf-8") as infile:
+
+    #     reader = csv.reader(infile)
+
+    #     for row in reader:
+    #         if not row:
+    #             continue
+
+    #         passwords_gen.append("".join(row))
     
     person = Person(Locale.EN)
     datetime_provider = Datetime()
     
     cases = {
-        0:  0.19409,
+        0: 0.19409,
         1: 0.17496,
         2: 0.17967,
         3: 0.09559,
@@ -113,9 +144,8 @@ def gen_synthetic_data():
         5: 0.03594,
         6: 0.03080,
         7: 0.02541,
-        8: 0.01749,
-        9: 0.01557,
-        10: 0.18401
+        8: 0.01557,
+        9: 0.2015
     }
     cases_keys = list(cases.keys())
     cases_values = list(cases.values())
@@ -181,12 +211,14 @@ def gen_synthetic_data():
             elif case == 7:
                 
                 pw = get_random_email_choice(em)
-            elif case == 8:
+            elif case == 10:
                 
                 pw = f"{get_random_name_choice(fn, ln)}{''.join(random.choices('0123456789', k=7))}"
-            elif case == 9:
+            elif case == 8:
                 
                 pw = f"{get_random_username_choice(un)}{get_random_birthdate_choice(by, bm, bd)}"
+ 
+            #TODO: output password templates instead of final passwords for PII cases (only PII tags, the rest of the characters are kept as i)
  
             row = [
                 pw,
@@ -382,10 +414,15 @@ def main() -> None:
         
     data = []   
     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            data.append(line.rstrip('\n'))
+        for row in f:
+            cleaned = row.encode("ascii", errors="ignore").decode("ascii").strip()
+            if cleaned:
+                data.append(cleaned)
             
     random.shuffle(data)
+    
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed_ascii.txt", "w", encoding="utf-8") as f1:
+        f1.write("\n".join(data) + "\n")
         
     midpoint = len(data) // 2
 
@@ -397,7 +434,31 @@ def main() -> None:
         
     with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_sorted_preprocessed_ts.txt", "w", encoding="utf-8") as f2:
         f2.write("\n".join(part2) + "\n")
+        
+    print(len(data))
+    print(len(part1))
+    print(len(part2))
+    
+def main() -> None:
+        
+    data = []   
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\synthetic_attacker.csv", "r", encoding="utf-8") as infile:
+
+        reader = csv.reader(infile)
+
+        next(reader, None)
+        for row in reader:
+            
+            if row:
+                data.append(row[0])
+     
+    print(len(data))       
+    # res = sorted(Counter(data).items(), key=lambda x: x[0].encode())
+    
+    # with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\synthetic_counts.txt", "w", encoding="utf-8") as f:
+    #     for word, count in res:
+    #         f.write(f"{word}:{count}\n")
 
 if __name__ == "__main__":
-    gen_synthetic_data_test()
-    # main()
+    # gen_synthetic_data()
+    main()

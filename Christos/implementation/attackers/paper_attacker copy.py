@@ -11,23 +11,17 @@ from tqdm import tqdm
 @dataclass
 class SweetwordList:
     user_id: str
-    sweetwords: List[Tuple[str, float]]
+    sweetwords: List[str]
     real_password: Optional[str] = None
     num_failure: int = 0
     attempted: set[str] = field(default_factory=set)
     _index: Dict[str, int] = field(init=False, repr=False)
-    # ADDED: stores prhw per word, extracted from sweetwords tuples
-    _prhw: Dict[str, float] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        # CHANGED: unpack (word, prhw) tuples when building index
-        self._index = {word: idx for idx, (word, _) in enumerate(self.sweetwords)}
-        # ADDED: build prhw lookup from sweetwords tuples
-        self._prhw = {word: prhw for word, prhw in self.sweetwords}
+        self._index = {word: idx for idx, word in enumerate(self.sweetwords)}
 
     def remaining(self) -> List[str]:
-        # CHANGED: unpack tuples; still returns plain strings
-        return [word for word, _ in self.sweetwords if word not in self.attempted]
+        return [word for word in self.sweetwords if word not in self.attempted]
 
 
 @dataclass
@@ -45,6 +39,13 @@ class AttackStats:
 
 class NormalizedTopPWModelHG:
     def __init__(self, db_path: str, dataset_size: int) -> None:
+        """
+        Initializes the model for disk-based binary search.
+        
+        :param db_path: Path to the 5GB cleartext-sorted file (password:count)
+        :param dataset_size: The total sum of all counts in the dataset, required 
+                             for accurate probability generation.
+        """
         self.db_path = db_path
         self.dataset_size = dataset_size
         
@@ -54,68 +55,84 @@ class NormalizedTopPWModelHG:
             raise ValueError("Dataset size must be strictly greater than 0.")
 
     def _binary_search_count(self, target_word: str) -> int:
+        """
+        Performs a zero-RAM binary search directly on the SSD to find the count.
+        Assumes the file is sorted by the password column using LC_ALL=C.
+        """
         file_size = os.path.getsize(self.db_path)
         low = 0
         high = file_size
+
+        # We encode to bytes to ensure perfect matching with LC_ALL=C Unix sorting
         target_bytes = target_word.encode('utf-8')
 
         with open(self.db_path, 'rb') as f:
             while low < high:
                 mid = (low + high) // 2
                 f.seek(mid)
+
+                # If we jump into the middle of the file, we are likely in the 
+                # middle of a word. Read and discard until the next newline.
                 if mid > 0:
                     f.readline()
+
                 line_bytes = f.readline()
                 if not line_bytes:
-                    break
+                    break  # EOF reached
+
                 try:
+                    # Decode and safely right-split by the colon
                     line_str = line_bytes.decode('utf-8').rstrip('\r\n')
                     current_word, count_str = line_str.rsplit(':', 1)
                     current_count = int(count_str)
                 except ValueError:
+                    # If we hit a malformed line, gracefully advance the lower bound
                     low = f.tell()
                     continue
+
                 current_bytes = current_word.encode('utf-8')
+
+                # Binary search logic
                 if current_bytes == target_bytes:
                     return current_count
                 elif current_bytes < target_bytes:
                     low = f.tell()
                 else:
                     high = mid
-        return 0
+
+        return 0  # Word not found in the HIBP dataset
 
     def _base_prob(self, word: str) -> float:
+        """
+        Fetches the exact count from disk and returns its normalized probability.
+        """
         count = self._binary_search_count(word)
         if count > 0 and self.dataset_size > 0:
             return count / self.dataset_size
         return 0.0
 
     def _get_sweetword(self, entry: SweetwordList) -> Tuple[float, Optional[str], int]:
+        #print(f"from sweetword list: {entry.sweetwords}")
         remaining = entry.remaining()
         if not remaining:
             return 0.0, None, 0
             
         base_probs = {word: self._base_prob(word) for word in remaining}
+        #print(f"base probabilities: {base_probs}")
         nonzero_probs = [prob for prob in base_probs.values() if prob > 0]
-
-        # CHANGED: Case 2 score is prpw/prhw; fall back to 0.0 if prhw is zero
-        scores = {
-            word: base_probs[word] / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else 0.0
-            for word in remaining
-        }
-
-        denom = sum(scores.values())
+            
+        denom = sum(base_probs.values())
         
         if denom <= 0:
+            # All zero probabilities: fall back to list order so we still attempt up to t1.
             fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
             return 0.0, fallback, len(nonzero_probs)
             
         best = max(
             remaining,
-            key=lambda word: (scores[word], -entry._index.get(word, 0)),
+            key=lambda word: (base_probs[word], -entry._index.get(word, 0)),
         )
-        # CHANGED: normalise by sum of case-2 scores instead of sum of prpw
-        return scores[best] / denom, best, len(nonzero_probs)
+        return base_probs[best] / denom, best, len(nonzero_probs)
 
     def _get_sweetword_with_probs(
         self,
@@ -126,29 +143,21 @@ class NormalizedTopPWModelHG:
         if not remaining:
             return 0.0, None
 
-        # CHANGED: Case 2 score is prpw/prhw; fall back to 0.0 if prhw is zero
-        scores = {
-            word: base_probs.get(word, 0.0) / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else 0.0
-            for word in remaining
-        }
-
-        denom = sum(scores.values())
+        denom = sum(base_probs.get(word, 0.0) for word in remaining)
         if denom <= 0:
             fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
             return 0.0, fallback
 
         best = max(
             remaining,
-            key=lambda word: (scores.get(word, 0.0), -entry._index.get(word, 0)),
+            key=lambda word: (base_probs.get(word, 0.0), -entry._index.get(word, 0)),
         )
-        # CHANGED: normalise by sum of case-2 scores instead of sum of prpw
-        return scores.get(best, 0.0) / denom, best
+        return base_probs.get(best, 0.0) / denom, best
 
     def _clone_entries(self, entries: Iterable[SweetwordList]) -> List[SweetwordList]:
         return [
             SweetwordList(
                 user_id=entry.user_id,
-                # CHANGED: preserve (word, prhw) tuples when cloning
                 sweetwords=list(entry.sweetwords),
                 real_password=entry.real_password,
             )
@@ -167,26 +176,18 @@ class NormalizedTopPWModelHG:
         total_nonzero_prob_words = 0
         
         for entry in entries:
-            # CHANGED: unpack (word, prhw) tuples to get word strings for prob lookup
-            entry_probs = {word: self._base_prob(word) for word, _ in entry.sweetwords}
+            entry_probs = {word: self._base_prob(word) for word in entry.sweetwords}
             prob_cache[entry.user_id] = entry_probs
             total_nonzero_prob_words += sum(1 for prob in entry_probs.values() if prob > 0)
 
             if entry.real_password is None:
                 continue
 
-            # CHANGED: compute Case 2 scores for epsilon-flatness calculation
-            scores = {
-                word: entry_probs[word] / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else 0.0
-                for word in entry._prhw
-            }
-            total = sum(scores.values())
-
+            total = sum(entry_probs.values())
             if total <= 0:
                 prob = 1.0 / k
             else:
-                # CHANGED: use case-2 score of real_password instead of raw prpw
-                prob = scores.get(entry.real_password, 0.0) / total
+                prob = entry_probs.get(entry.real_password, 0.0) / total
             
             total_prob += prob
             valid_user_count += 1

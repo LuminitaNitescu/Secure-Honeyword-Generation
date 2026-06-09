@@ -558,9 +558,9 @@ class PcfgClass:
     # Generates a random terminal from a parse tree
     # Used for honeyword creation
     ##############################################################################################################################
-    def gen_random_terminal(self,pt, pii: dict = None):
+    def gen_random_terminal(self,pt, pii: dict = None, replacement: bool = False):
         guess_generation = GuessGeneration(self.grammar, self.markov_cracker, pt)
-        guess, prob = guess_generation.get_random_guess(pii)
+        guess, prob = guess_generation.get_random_guess(pii, replacement)
         return guess, prob
 
 
