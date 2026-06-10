@@ -43,7 +43,7 @@ class AttackStats:
     success_curve: List[Tuple[int, int]]
 
 
-class NormalizedTopPWModelHG:
+class PaperAttacker:
     def __init__(self, db_path: str, dataset_size: int) -> None:
         self.db_path = db_path
         self.dataset_size = dataset_size
@@ -86,9 +86,9 @@ class NormalizedTopPWModelHG:
 
     def _base_prob(self, word: str) -> float:
         count = self._binary_search_count(word)
-        if count > 0 and self.dataset_size > 0:
+        if count > 0:
             return count / self.dataset_size
-        return 0.0
+        return 1.0 / (self.dataset_size + 1)
 
     def _get_sweetword(self, entry: SweetwordList) -> Tuple[float, Optional[str], int]:
         remaining = entry.remaining()
@@ -100,15 +100,15 @@ class NormalizedTopPWModelHG:
 
         # CHANGED: Case 2 score is prpw/prhw; fall back to 0.0 if prhw is zero
         scores = {
-            word: base_probs[word] / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else 0.0
+            word: base_probs[word] / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else inf
             for word in remaining
         }
 
         denom = sum(scores.values())
         
-        if denom <= 0:
-            fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
-            return 0.0, fallback, len(nonzero_probs)
+        # if denom <= 0:
+        #     fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
+        #     return 0.0, fallback, len(nonzero_probs)
             
         best = max(
             remaining,
@@ -128,21 +128,21 @@ class NormalizedTopPWModelHG:
 
         # CHANGED: Case 2 score is prpw/prhw; fall back to 0.0 if prhw is zero
         scores = {
-            word: base_probs.get(word, 0.0) / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else 0.0
+            word: base_probs[word] / entry._prhw[word] if entry._prhw[word] > 0 else inf
             for word in remaining
         }
+        
+        # if denom <= 0:
+        #     fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
+        #     return 0.0, fallback
+
+        best = max(remaining, key=lambda word: scores[word])
+        
+        if scores[best] == inf:
+            return 1.0, best
 
         denom = sum(scores.values())
-        if denom <= 0:
-            fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
-            return 0.0, fallback
-
-        best = max(
-            remaining,
-            key=lambda word: (scores.get(word, 0.0), -entry._index.get(word, 0)),
-        )
-        # CHANGED: normalise by sum of case-2 scores instead of sum of prpw
-        return scores.get(best, 0.0) / denom, best
+        return scores[best] / denom, best
 
     def _clone_entries(self, entries: Iterable[SweetwordList]) -> List[SweetwordList]:
         return [
@@ -177,16 +177,23 @@ class NormalizedTopPWModelHG:
 
             # CHANGED: compute Case 2 scores for epsilon-flatness calculation
             scores = {
-                word: entry_probs[word] / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else 0.0
+                word: entry_probs[word] / entry._prhw[word] if entry._prhw[word] > 0 else inf
                 for word in entry._prhw
             }
-            total = sum(scores.values())
 
-            if total <= 0:
-                prob = 1.0 / k
+            # if total <= 0:
+            #     prob = 1.0 / k
+            # else:
+            #     # CHANGED: use case-2 score of real_password instead of raw prpw
+            #     prob = scores.get(entry.real_password, 0.0) / total
+            
+            if entry._prhw.get(entry.real_password, 0.0) == 0.0:
+                prob = 1.0
+            elif any(entry._prhw[w] == 0.0 for w in entry._prhw if w != entry.real_password):
+                prob = 0.0
             else:
-                # CHANGED: use case-2 score of real_password instead of raw prpw
-                prob = scores.get(entry.real_password, 0.0) / total
+                best_word = max(entry._prhw, key=lambda w: scores[w])
+                prob = 1.0 if best_word == entry.real_password else 0.0
             
             total_prob += prob
             valid_user_count += 1
@@ -305,13 +312,13 @@ class NormalizedTopPWModelHG:
             for entry in entries
             if entry.real_password is not None
         }
-        for entry in tqdm(
+        for i, entry in enumerate(tqdm(
             entries,
             total=len(entries),
             desc="Flatness graph",
             unit="users",
             disable=not show_progress,
-        ):
+        )):
             attempts = 0
             while True:
                 priority, word = self._get_sweetword_with_probs(
