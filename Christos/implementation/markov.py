@@ -61,7 +61,7 @@ def _generate_for_single_password(args):
         
     rng.shuffle(res)
     
-    return res
+    return [query.password, res]
 
 class MarkovModel():
     
@@ -74,12 +74,12 @@ class MarkovModel():
             self.chain = model['chain']
             self.starts = model['starts']
             
-            self._preprocess_chain()
+            self._preprocess()
         else:
             self.starts = None
             self.chain = None
 
-    def _preprocess_chain(self):
+    def _preprocess(self):
         
         self.chain_preprocessed = {
             k: (list(v.keys()), list(v.values()))
@@ -143,7 +143,7 @@ class MarkovModel():
             for nxt in self.chain[chain].keys():
                 self.chain[chain][nxt] = self.chain[chain][nxt] / total_chain[chain]
                 
-        self._preprocess_chain()
+        self._preprocess()
         
         os.makedirs('./Christos/trained_models', exist_ok=True)
         with open('./Christos/trained_models/markov.pickle', 'wb') as f:
@@ -185,40 +185,48 @@ class MarkovModel():
     
     def generate(self, k: int, queries: list[UserData]=None, seed: int=None):
         
-        res = []
+        # res = []
         
-        tasks = [
-            (idx, query, k, seed + idx)
-            for idx, query in enumerate(queries)
-        ]
+        # tasks = [
+        #     (idx, query, k, seed + idx)
+        #     for idx, query in enumerate(queries)
+        # ]
 
-        with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
-            results = tqdm(
-                pool.imap(_generate_for_single_password, tasks, chunksize=32),
-                total=len(tasks),
+        # with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
+        #     results = tqdm(
+        #         pool.imap(_generate_for_single_password, tasks, chunksize=32),
+        #         total=len(tasks),
+        #         desc="Generating Honeywords"
+        #     )
+            
+        #     for honeyword_run in results:
+        #         res.append(honeyword_run)
+        
+        res = tqdm(
+                [
+                    _generate_for_single_password((idx, query, k, seed + idx))
+                    for idx, query in enumerate(queries) 
+                ],
+                total=len(queries),
                 desc="Generating Honeywords"
             )
-            
-            for honeyword_run in results:
-                res.append(honeyword_run)
                
         return res
 
 
-def _generate_for_single_password_targeted(args):
-
-    idx, query, k, seed = args
+def _process_password(i):
+            
+    chain  = defaultdict(list)
+    starts = []
     
-    rng = random.Random(seed)
-      
-    pw = query.password  
-    fn = query.first_name
-    ln = query.last_name
-    bd = query.birthday[0:2]
-    bm = query.birthday[2:4]
-    by = query.birthday[4:8]
-    un = query.username
-    em = query.email.split("@")[0]
+    pw = i[0]
+    fn = i[3]
+    ln = i[4]
+    bd = i[5][0:2]
+    bm = i[5][2:4]
+    by = i[5][4:8]
+    un = i[2]
+    em = i[1].split("@")[0]
     
     tags = dict()
     tags[_chars[0]] = f"{fn}{ln}"
@@ -248,12 +256,76 @@ def _generate_for_single_password_targeted(args):
     if regex:
         tags[_chars[21]] = regex.group(1)
         tags[_chars[22]] = regex.group(2)
+        
+    pw = tokenize_password(pw, tags)
     
-    res = [[pw, _worker_model.prob_pw(pw, query)]]
-    honeywords = [pw]
+    if len(pw) < 4:
+        starts.append(pw)
+    else:
+        pw += '\n'
+        starts.append(pw[:4])
 
-    keys   = list(_worker_model.starts.keys())
-    probs  = list(_worker_model.starts.values())
+        window = deque(pw[:4], maxlen=4)
+        for ch in pw[4:]:
+            chain[tuple(window)].append(ch)
+            window.append(ch)       
+    
+    return chain, starts 
+
+def _generate_for_single_password_targeted(args):
+
+    idx, query, structure, k, seed, replacement = args
+    
+    rng = random.Random(seed)
+      
+    pw = query.password  
+    fn = query.first_name
+    ln = query.last_name
+    bd = query.birthday[0:2]
+    bm = query.birthday[2:4]
+    by = query.birthday[4:8]
+    un = query.username
+    em = query.email.split("@")[0]
+    
+    tags = dict()
+    if replacement:
+        tags[_chars[0]] = f"{fn}{ln}"
+        tags[_chars[1]] = f"{fn[0]}{ln[0]}"
+        tags[_chars[2]] = ln
+        tags[_chars[3]] = fn
+        tags[_chars[4]] = f"{fn[0]}{ln}"
+        tags[_chars[5]] = f"{ln}{fn[0]}"
+        tags[_chars[6]] = f"{ln[0].upper()}{ln[1:]}"
+        tags[_chars[7]] = f"{by}{bm}{bd}"
+        tags[_chars[8]] = f"{bm}{bd}{by}"
+        tags[_chars[9]] = f"{bd}{bm}{by}"
+        tags[_chars[10]] = f"{bd}{bm}"
+        tags[_chars[11]] = by
+        tags[_chars[12]] = f"{by}{bm}"
+        tags[_chars[13]] = f"{bm}{by}"
+        tags[_chars[14]] = f"{by[2:]}{bm}{bd}"
+        tags[_chars[15]] = f"{bm}{bd}{by[2:]}"
+        tags[_chars[16]] = f"{bd}{bm}{by[2:]}"
+        tags[_chars[17]] = un
+        tags[_chars[18]] = em
+        regex = re.search(r"([a-zA-Z]+)(\d+)", un)
+        if regex:
+            tags[_chars[19]] = regex.group(1)
+            tags[_chars[20]] = regex.group(2)
+        regex = re.search(r"([a-zA-Z]+)(\d+)", em)
+        if regex:
+            tags[_chars[21]] = regex.group(1)
+            tags[_chars[22]] = regex.group(2)
+    
+    if replacement:
+        pw_processed = pw
+    else:
+        pw_processed = "".join(special_char_converter(structure))
+    res = [[pw_processed, _worker_model.prob_pw(pw, query)]]
+    honeywords = [pw_processed]
+    
+    keys = _worker_model.start_preprocessed[0]
+    probs = _worker_model.start_preprocessed[1]
 
     while len(res) < k:
         cur = rng.choices(keys, weights=probs, k=1)[0]
@@ -265,10 +337,12 @@ def _generate_for_single_password_targeted(args):
 
         queue = deque(cur, maxlen=4)
         while queue:
-            chars = _worker_model.chain["".join(queue)]
-            nxt = rng.choices(list(chars.keys()), weights=list(chars.values()), k=1)[0]
+            lookup_key = "".join(queue)
             
-            log_p += math.log(chars[nxt])
+            keys_c, weights_c = _worker_model.chain_preprocessed[lookup_key]
+            nxt = rng.choices(keys_c, weights=weights_c, k=1)[0]
+            
+            log_p += math.log(_worker_model.chain[lookup_key][nxt])
             
             if nxt == '\n':
                 break
@@ -284,7 +358,7 @@ def _generate_for_single_password_targeted(args):
             
     rng.shuffle(res)
             
-    return res
+    return [pw_processed, res]
 
 class TargetedMarkovModel():
     
@@ -296,76 +370,39 @@ class TargetedMarkovModel():
                 model = pickle.load(f)
             self.chain = model['chain']
             self.starts = model['starts']
+            
+            self._preprocess()
         else:
             self.starts = None
             self.chain = None
-    
-    def _process_password(self, i, chars):
             
-            chain  = defaultdict(list)
-            starts = []
-            
-            pw = i[0]
-            fn = i[3]
-            ln = i[4]
-            bd = i[5][0:2]
-            bm = i[5][2:4]
-            by = i[5][4:8]
-            un = i[2]
-            em = i[1].split("@")[0]
-            
-            tags = dict()
-            tags[chars[0]] = f"{fn}{ln}"
-            tags[chars[1]] = f"{fn[0]}{ln[0]}"
-            tags[chars[2]] = ln
-            tags[chars[3]] = fn
-            tags[chars[4]] = f"{fn[0]}{ln}"
-            tags[chars[5]] = f"{ln}{fn[0]}"
-            tags[chars[6]] = f"{ln[0].upper()}{ln[1:]}"
-            tags[chars[7]] = f"{by}{bm}{bd}"
-            tags[chars[8]] = f"{bm}{bd}{by}"
-            tags[chars[9]] = f"{bd}{bm}{by}"
-            tags[chars[10]] = f"{bd}{bm}"
-            tags[chars[11]] = by
-            tags[chars[12]] = f"{by}{bm}"
-            tags[chars[13]] = f"{bm}{by}"
-            tags[chars[14]] = f"{by[2:]}{bm}{bd}"
-            tags[chars[15]] = f"{bm}{bd}{by[2:]}"
-            tags[chars[16]] = f"{bd}{bm}{by[2:]}"
-            tags[chars[17]] = un
-            tags[chars[18]] = em
-            regex = re.search(r"([a-zA-Z]+)(\d+)", un)
-            if regex:
-                tags[chars[19]] = regex.group(1)
-                tags[chars[20]] = regex.group(2)
-            regex = re.search(r"([a-zA-Z]+)(\d+)", em)
-            if regex:
-                tags[chars[21]] = regex.group(1)
-                tags[chars[22]] = regex.group(2)
-                
-            pw = tokenize_password(pw, tags)
-            
-            if len(pw) < 4:
-                starts.append(pw)
-            else:
-                pw += '\n'
-                starts.append(pw[:4])
-
-                window = deque(pw[:4], maxlen=4)
-                for ch in pw[4:]:
-                    chain[tuple(window)].append(ch)
-                    window.append(ch)       
-            
-            return chain, starts 
+    def _preprocess(self):
+        
+        self.chain_preprocessed = {
+            k: (list(v.keys()), list(v.values()))
+            for k, v in self.chain.items()
+        }
+        
+        self.start_preprocessed = (list(self.starts.keys()), list(self.starts.values()))
         
     def load_data(self, data):
         self.data = data 
-        
-        with Manager() as manager:
-            shared_list = manager.list(self.chars)
-            fn = partial(self._process_password, shared_list)
-            with Pool() as pool:
-                results = pool.map(fn, self.data)
+                
+        tasks = [
+            (idx, entry)
+            for idx, entry in enumerate(data)
+        ]
+
+        results = []
+        with multiprocessing.Pool() as pool:
+            results_parallel = tqdm(
+                pool.imap(_process_password, tasks),
+                total=len(tasks),
+                desc="Training Targeted Markov Model."
+            )
+            
+            for result in results_parallel:
+                results.append(result)
             
         total_chain  = defaultdict(int)
         total_starts = 0
@@ -389,6 +426,8 @@ class TargetedMarkovModel():
             total = total_chain[ctx]
             for nxt in self.chain[ctx]:
                 self.chain[ctx][nxt] /= total
+                
+        self._preprocess()
     
         os.makedirs('./Christos/trained_models', exist_ok=True)
         with open('./Christos/trained_models/targeted_markov.pickle', 'wb') as f:
@@ -405,33 +444,33 @@ class TargetedMarkovModel():
         em = user_data.email.split("@")[0]
 
         tags = dict()
-        tags[self.chars[0]] = f"{fn}{ln}"
-        tags[self.chars[1]] = f"{fn[0]}{ln[0]}"
-        tags[self.chars[2]] = ln
-        tags[self.chars[3]] = fn
-        tags[self.chars[4]] = f"{fn[0]}{ln}"
-        tags[self.chars[5]] = f"{ln}{fn[0]}"
-        tags[self.chars[6]] = f"{ln[0].upper()}{ln[1:]}"
-        tags[self.chars[7]] = f"{by}{bm}{bd}"
-        tags[self.chars[8]] = f"{bm}{bd}{by}"
-        tags[self.chars[9]] = f"{bd}{bm}{by}"
-        tags[self.chars[10]] = f"{bd}{bm}"
-        tags[self.chars[11]] = by
-        tags[self.chars[12]] = f"{by}{bm}"
-        tags[self.chars[13]] = f"{bm}{by}"
-        tags[self.chars[14]] = f"{by[2:]}{bm}{bd}"
-        tags[self.chars[15]] = f"{bm}{bd}{by[2:]}"
-        tags[self.chars[16]] = f"{bd}{bm}{by[2:]}"
-        tags[self.chars[17]] = un
-        tags[self.chars[18]] = em
+        tags[_chars[0]] = f"{fn}{ln}"
+        tags[_chars[1]] = f"{fn[0]}{ln[0]}"
+        tags[_chars[2]] = ln
+        tags[_chars[3]] = fn
+        tags[_chars[4]] = f"{fn[0]}{ln}"
+        tags[_chars[5]] = f"{ln}{fn[0]}"
+        tags[_chars[6]] = f"{ln[0].upper()}{ln[1:]}"
+        tags[_chars[7]] = f"{by}{bm}{bd}"
+        tags[_chars[8]] = f"{bm}{bd}{by}"
+        tags[_chars[9]] = f"{bd}{bm}{by}"
+        tags[_chars[10]] = f"{bd}{bm}"
+        tags[_chars[11]] = by
+        tags[_chars[12]] = f"{by}{bm}"
+        tags[_chars[13]] = f"{bm}{by}"
+        tags[_chars[14]] = f"{by[2:]}{bm}{bd}"
+        tags[_chars[15]] = f"{bm}{bd}{by[2:]}"
+        tags[_chars[16]] = f"{bd}{bm}{by[2:]}"
+        tags[_chars[17]] = un
+        tags[_chars[18]] = em
         regex = re.search(r"([a-zA-Z]+)(\d+)", un)
         if regex:
-            tags[self.chars[19]] = regex.group(1)
-            tags[self.chars[20]] = regex.group(2)
+            tags[_chars[19]] = regex.group(1)
+            tags[_chars[20]] = regex.group(2)
         regex = re.search(r"([a-zA-Z]+)(\d+)", em)
         if regex:
-            tags[self.chars[21]] = regex.group(1)
-            tags[self.chars[22]] = regex.group(2)
+            tags[_chars[21]] = regex.group(1)
+            tags[_chars[22]] = regex.group(2)
 
         tokenized = tokenize_password(word, tags)
 
@@ -463,12 +502,12 @@ class TargetedMarkovModel():
 
         return math.exp(log_p) 
      
-    def generate(self, k: int, queries: list[UserData]=None, seed: int=None):
+    def generate(self, k: int, queries: list[UserData]=None, seed: int=None, structures: dict[str, list[list[str]]] = None, replacement: bool = False):
         
         res = []
         
         tasks = [
-            (idx, query, k, seed + idx)
+            (idx, query, structures[query.password][0], k, seed + idx, replacement)
             for idx, query in enumerate(queries)
         ]
 
