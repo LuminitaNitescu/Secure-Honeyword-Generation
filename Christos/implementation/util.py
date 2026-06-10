@@ -1,6 +1,32 @@
 import ahocorasick
 
 
+tags = {
+            "N1": '\x10', 
+            "N2": '\x11', 
+            "N3": '\x12', 
+            "N4": '\x13', 
+            "N5": '\x14', 
+            "N6": '\x15', 
+            "N7": '\x16',
+            "B1": '\x00', 
+            "B2": '\x01', 
+            "B3": '\x02', 
+            "B4": '\x03', 
+            "B5": '\x04', 
+            "B6": '\x05', 
+            "B7": '\x06', 
+            "B8": '\x07', 
+            "B9": '\x08', 
+            "B10": '\x0b',
+            "U1": '\x0c', 
+            "U2": '\x0e', 
+            "U3": '\x0f', 
+            "E1": '\x17', 
+            "E2": '\x18', 
+            "E3": '\x19'
+        }
+
 class UserData():
     
     def __init__(self, password: str, email=None, username=None, first_name=None, last_name=None, birthday=None):
@@ -41,3 +67,11 @@ def tokenize_password(password, tags):
     res_parts.append(password[last_start + 1:len(password)])
     
     return "".join(res_parts)
+
+def special_char_converter(password_segmented: list[str]):
+    
+    res = []
+    for seg in password_segmented:
+        res.append(tags.get(seg, seg))
+        
+    return res
