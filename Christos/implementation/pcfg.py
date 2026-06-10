@@ -1,5 +1,5 @@
-from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer import train
 from legacy_pcfg_master.python_pcfg_cracker_version3.honeyword_gen import generate
+from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer import train
 
 import re
 from util import UserData
@@ -17,10 +17,11 @@ class PCFGModel():
             train(data=data, rule_name=rule_name)
         self.rule_name = rule_name
      
-    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, str]=None):
+    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, list[list[str]]]=None):
         
         if mode == "honeywords":
             queries_processed = []
+            passwords_processed = []
             for query in queries:
                 pw = query.password
                 
@@ -28,8 +29,9 @@ class PCFGModel():
                     continue
                 
                 queries_processed.append([pw, structures[pw], None])
+                passwords_processed.append(pw)
             
-            return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed)
+            return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed), passwords_processed
         else:
             return generate(k=k, rule_name=self.rule_name, mode="passwords")
     
@@ -45,7 +47,7 @@ class TargetedPCFGModel():
             train(data=data, rule_name=rule_name, targeted=True)
         self.rule_name = rule_name
      
-    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, str] = None, replacement: bool = False):
+    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, list[list[str]]] = None, replacement: bool = False):
         
         queries_processed = []
         for query in queries:

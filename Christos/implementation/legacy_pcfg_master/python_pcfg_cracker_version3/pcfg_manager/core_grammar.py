@@ -443,19 +443,20 @@ class PcfgClass:
                 cur_transition = i
                 break
 
-        if cur_transition == -1:
-            if random_number > 0.99: #TODO
-                cur_transition = 0
-            else:
-                print("transition prob:" + str(transition_prob), file=sys.stderr)
-                print("random number:" + str(random_number), file=sys.stderr)
-                print("cur_index:" + str(cur_index), file=sys.stderr)
-                print(self.grammar[cur_index]['name'], file=sys.stderr)
-                print(self.grammar[cur_index]['replacements'][0], file=sys.stderr)
-                print("Error with random walk, the probabilities of all the transitions was less than one in the grammar", file=sys.stderr)
-                print("I'd appreciate if you left a bug report on the github page with the above info")
-                value = input("Hit Enter")
-                return None, float('-inf')
+        #TODO
+        # if cur_transition == -1:
+        #     if random_number > 0.999:
+        #         cur_transition = 0
+        #     else:
+        #         print("transition prob:" + str(transition_prob), file=sys.stderr)
+        #         print("random number:" + str(random_number), file=sys.stderr)
+        #         print("cur_index:" + str(cur_index), file=sys.stderr)
+        #         print(self.grammar[cur_index]['name'], file=sys.stderr)
+        #         print(self.grammar[cur_index]['replacements'][0], file=sys.stderr)
+        #         print("Error with random walk, the probabilities of all the transitions was less than one in the grammar", file=sys.stderr)
+        #         print("I'd appreciate if you left a bug report on the github page with the above info")
+        #         value = input("Hit Enter")
+        #         return None, float('-inf')
 
         # Accumulate log probability of the transition taken at this node
         replacement = self.grammar[cur_index]['replacements'][cur_transition]
@@ -493,7 +494,7 @@ class PcfgClass:
         search_idx = 0
         while not found and search_idx < len(self.grammar[start_index]['replacements']):
             entry = self.grammar[start_index]['replacements'][search_idx]
-            if entry["values"][0] == structure_str:
+            if structure_str in entry["values"]:
                 found = True
                 res += math.log(entry["prob"])
             search_idx += 1
@@ -502,12 +503,16 @@ class PcfgClass:
         
         idx = 0
         for part in structure:
+            
+            part_type = part[0]
+            part_num = int(part[1:])
+            
             rule_idx = 0
             found = False
             search_idx = 0
             while not found and search_idx < len(self.grammar):
                 entry = self.grammar[search_idx]
-                if entry["name"] == part[1] and entry["type"] == f"BASE_{part[0]}":
+                if entry["name"] == str(part_num) and entry["type"] == f"BASE_{part_type}":
                     found = True
                     rule_idx = search_idx
                 search_idx += 1
@@ -518,38 +523,40 @@ class PcfgClass:
             search_idx = 0
             while not found and search_idx < len(self.grammar[rule_idx]["replacements"]):
                 entry = self.grammar[rule_idx]["replacements"][search_idx]
-                if entry["values"][0] == password[idx:idx + int(part[1])]:
+                if password[idx:idx + part_num].lower() in entry["values"]:
                     found = True
                     res += math.log(entry["prob"])
                 search_idx += 1
             if not found:
                 return 0.0
             
-            mask = "".join(["U" if char.isupper() else "L" for char in password[idx:idx + int(part[1])]])
-            rule_idx = 0
-            found = False
-            search_idx = 0
-            while not found and search_idx < len(self.grammar):
-                entry = self.grammar[search_idx]
-                if entry["name"] == part[1] and entry["type"] == "CAPITALIZATION":
-                    found = True
-                    rule_idx = search_idx
-                search_idx += 1
-            if not found:
-                return 0.0
+            if part_type == "A":
+                
+                mask = "".join(["U" if char.isupper() else "L" for char in password[idx:idx + part_num]])
+                rule_idx = 0
+                found = False
+                search_idx = 0
+                while not found and search_idx < len(self.grammar):
+                    entry = self.grammar[search_idx]
+                    if entry["name"] == str(part_num) and entry["type"] == "CAPITALIZATION":
+                        found = True
+                        rule_idx = search_idx
+                    search_idx += 1
+                if not found:
+                    return 0.0
+                
+                found = False
+                search_idx = 0
+                while not found and search_idx < len(self.grammar[rule_idx]["replacements"]):
+                    entry = self.grammar[rule_idx]["replacements"][search_idx]
+                    if mask in entry["values"]:
+                        found = True
+                        res += math.log(entry["prob"])
+                    search_idx += 1
+                if not found:
+                    return 0.0
             
-            found = False
-            search_idx = 0
-            while not found and search_idx < len(self.grammar[rule_idx]["replacements"]):
-                entry = self.grammar[rule_idx]["replacements"][search_idx]
-                if entry["values"][0] == mask:
-                    found = True
-                    res += math.log(entry["prob"])
-                search_idx += 1
-            if not found:
-                return 0.0
-            
-            idx += int(part[1])
+            idx += part_num
             
         return math.exp(res)
 

@@ -448,7 +448,15 @@ class TrainingData:
                 print("Error parsing email PII combos")
                 return ret_value
 
-            cur_pass.processed_mask = processed_mask.copy()
+            if len(processed_mask) > 0:
+                cur_pass.processed_mask = processed_mask.copy()
+
+        structure_only_pii = []
+        for part in cur_pass.processed_mask:
+            if part[1] == None:
+                structure_only_pii.append(part[0])
+            else:
+                structure_only_pii.append(part[1])
 
         #################################################################
         ##--Parse out all the keyboard combinations
@@ -527,6 +535,11 @@ class TrainingData:
             print("Error parsing special charcter combos")
             return ret_value
         
+        structure = []
+        for part in cur_pass.processed_mask:
+            structure.append(part[1])
+        self.structure_dict[input_password[0]] = [structure, structure_only_pii]
+        
         ###########################################################################
         #--Finally save the base structure data as everything should be parsed now
         ###########################################################################
@@ -538,8 +551,6 @@ class TrainingData:
         if ret_value != RetType.STATUS_OK:
             print("Error parsing a password. There were sections that were not processed")
             return ret_value
-        
-        self.structure_dict[input_password[0]] = sections
         
         ##--Now update the base structure list
         ret_value = self.base_structure.insert_list(items)

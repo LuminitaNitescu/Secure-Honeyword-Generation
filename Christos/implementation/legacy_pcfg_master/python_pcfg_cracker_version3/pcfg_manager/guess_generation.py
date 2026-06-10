@@ -9,6 +9,7 @@
 import random ##--Used for honeyword generation
 
 from .markov_cracker import MarkovCracker, MarkovIndex
+from util import special_char_converter
 
 import math
 
@@ -301,32 +302,6 @@ class GuessGeneration:
         ##--The Markov grammar
         self.markov_cracker = markov_cracker
         
-        self.tags = {
-            "N1": '\x10', 
-            "N2": '\x11', 
-            "N3": '\x12', 
-            "N4": '\x13', 
-            "N5": '\x14', 
-            "N6": '\x15', 
-            "N7": '\x16',
-            "B1": '\x00', 
-            "B2": '\x01', 
-            "B3": '\x02', 
-            "B4": '\x03', 
-            "B5": '\x04', 
-            "B6": '\x05', 
-            "B7": '\x06', 
-            "B8": '\x07', 
-            "B9": '\x08', 
-            "B10": '\x0b',
-            "U1": '\x0c', 
-            "U2": '\x0e', 
-            "U3": '\x0f', 
-            "E1": '\x17', 
-            "E2": '\x18', 
-            "E3": '\x19'
-        }
-        
         ##--Initilaize the terminal structures
         self.__initialize(pre_terminal, 0)
                 
@@ -404,10 +379,10 @@ class GuessGeneration:
             log_prob += item_log_prob
 
         if pii:
-            dictionary = self.tags
             if replacement:
-                dictionary = pii
-            for i in range(0, len(self.guess)):
-                self.guess[i] = dictionary.get(self.guess[i], self.guess[i])
+                for i in range(0, len(self.guess)):
+                    self.guess[i] = pii.get(self.guess[i], self.guess[i])
+            else:
+                self.guess = special_char_converter(self.guess)
 
         return ''.join(self.guess), log_prob

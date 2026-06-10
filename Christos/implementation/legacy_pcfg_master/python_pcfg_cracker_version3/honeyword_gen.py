@@ -46,6 +46,7 @@ from distutils.version import LooseVersion  #--Compare the trainer version used 
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.file_io import load_grammar
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.core_grammar import PcfgClass
 from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_manager.markov_cracker import MarkovCracker
+from util import special_char_converter
 
 from util import UserData
 import multiprocessing
@@ -261,10 +262,16 @@ def _generate_honeywords_for_single_password(args):
     idx, query, k, start_index, seed, replacement = args
     
     password = query[0]
-    structure = query[1]
+    structure = query[1][0]
+    structure_only_pii = query[1][1]
+    pii = query[2]
     
-    honeywords = [password]
-    res = [[password, _worker_pcfg.get_prob(password, structure, start_index)]]
+    if replacement:
+        pw_processed = password
+    else:
+        pw_processed = "".join(special_char_converter(structure_only_pii))   
+    honeywords = [pw_processed]
+    res = [[pw_processed, _worker_pcfg.get_prob(password, structure, start_index)]]
     
     cur_index = start_index
     local_errors = 0
@@ -274,7 +281,7 @@ def _generate_honeywords_for_single_password(args):
     while len(honeywords) < k:
         try:
             parse_tree, p_structure = _worker_pcfg.random_grammar_walk(cur_index)
-            honeyword, p_replacements = _worker_pcfg.gen_random_terminal(parse_tree, query[2] if len(query) > 2 else None, replacement)
+            honeyword, p_replacements = _worker_pcfg.gen_random_terminal(pt=parse_tree, pii=pii, replacement=replacement)
             
             # print(str(honeyword))
             
@@ -287,9 +294,9 @@ def _generate_honeywords_for_single_password(args):
     
     rng.shuffle(res)
             
-    return res, local_errors
+    return [pw_processed, res], local_errors
 
-def generate(k, rule_name, queries: list[list[str]]=None, seed: int=None, mode="honeywords", replacement: bool = False):
+def generate(k, rule_name, queries: list=None, seed: int=None, mode="honeywords", replacement: bool = True):
     
     ##--Information about this program--##
     management_vars = {
