@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Tweakable parameters
 VENV="$PWD/.venv"
-TARGET_DATASET="data/50k_subsample/rockyou_sorted_preprocessed.txt"
+TARGET_DATASET="data/50k_subsample/dropbox_sorted_preprocessed.txt"
 # "data/50k_subsample/rockyou_sorted_preprocessed.txt"
 # "data/50k_subsample/dropbox_sorted_preprocessed.txt"
 # "data/50k_subsample/linkedin_sorted_preprocessed.txt"
