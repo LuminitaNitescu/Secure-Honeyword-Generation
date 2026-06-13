@@ -163,17 +163,17 @@ def build_generator(
 
 
 def build_sweetword_lists(
-	passwords: Iterable[str],
+	passwords: List[str],
 	generator: HoneywordGenerator,
 	seed: int,
-	progress: bool,
 ) -> List[SweetwordList]:
 	rng = random.Random(seed)
+
+	print("Running KNN + PCFG generation (batched)...")
+	all_sweetwords = generator.generate_batch(passwords)
+
 	sweetword_lists: List[SweetwordList] = []
-	for idx, password in enumerate(
-		progress_iter(passwords, "Generating sweetwords", progress)
-	):
-		sweetwords = generator.generate(password)
+	for idx, (password, sweetwords) in enumerate(zip(passwords, all_sweetwords)):
 		rng.shuffle(sweetwords)
 		sweetword_lists.append(
 			SweetwordList(
@@ -290,7 +290,6 @@ def main() -> None:
 			passwords,
 			generator,
 			args.seed,
-			progress=progress_enabled,
 		)
 		if cache_enabled:
 			save_cached_sweetwords(cache_file, sweetword_lists)

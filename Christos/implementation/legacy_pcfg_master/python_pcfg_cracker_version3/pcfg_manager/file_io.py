@@ -253,39 +253,42 @@ def find_grammar_mapping(config, grammar, section_type, grammar_mapping={}):
 ########################################################################
 # Recursivly builds a grammar from a config file and a loaded ruleset
 ########################################################################
-def build_grammar(config, grammar, rule_directory, encoding, section_type, found_list = []):
-    
+def build_grammar(config, grammar, rule_directory, encoding, section_type, found_list=None):
+
+    if found_list is None:
+        found_list = []
+
     ##--Check to make sure the section we are trying to add isn't in the grammar already--##
     ##--This helps avoid loops in grammars that have recursion built into them--##
     for x in found_list:
         if x == section_type:
             print('Recursion found in grammar for section ' + str(section_type),file=sys.stderr)
             return True
-     
+
     ##--Add this section to the found_list to avoid loops in the future--##
     found_list.append(section_type)
-    
+
     try:
         ##--Grab the function type for this section from the config file--##
         ##--Note, yes the grammar is set up for individual replacements to have their own function
-        ##--but the training program is set up for one overarching function for each section. 
+        ##--but the training program is set up for one overarching function for each section.
         ##--What I'm trying to say is in the future this may need to be changed if you want multiple functions for different replacements
         ##--Aka if you have S-> D1, D2, D3 then those repalcement functions are all the same
         ##--If you want to have S-> D1, A3 then those replacement functions would be different for each section
         function = config.get(section_type,'function')
-        
+
         ##--Grab if it is a terminal replacement or not--##
         is_terminal = config.getboolean(section_type,'is_terminal')
-          
+
         ##--If the section is not a terminal replacement but instead leads to other replacements
         if is_terminal == False:
 
             replacements = json.loads(config.get(section_type,'replacements'))
             ##--Now add the replacements to the grammar before we attempt to add the links to them for this section
             for cur_replacement in replacements:
-                ret_value = build_grammar(config, grammar, rule_directory, encoding, cur_replacement['Config_id'])
+                ret_value = build_grammar(config, grammar, rule_directory, encoding, cur_replacement['Config_id'], found_list)
                 if ret_value != True:
-                    return ret_value    
+                    return ret_value
       
             ##--All replacements should be added by now so make the mapping to be used when reading in the data
             grammar_mapping = {}
@@ -321,7 +324,7 @@ def load_grammar(rule_directory, grammar, config_details = {}):
     
     ##--Attempt to read the config from disk
     try:
-        config.readfp(open(os.path.join(rule_directory,"config.ini")))
+        config.read_file(open(os.path.join(rule_directory,"config.ini")))
         ##--Find the encoding for the config file--##
         try:
             encoding = config.get('TRAINING_DATASET_DETAILS','encoding')

@@ -320,3 +320,51 @@ class HoneywordGenerator:
 			self.rng,
 			self.params,
 		)
+
+	def generate_batch(self, passwords: List[str]) -> List[List[str]]:
+		if self.pcfg_model is None or self.pcfg_structures is None:
+			return [self.generate(pw) for pw in passwords]
+
+		r = self.k // self.l
+
+		all_bases: List[List[str]] = [
+			_chaff_by_model(pw, self.l, self.backend, structures=self.pcfg_structures)
+			for pw in passwords
+		]
+
+		flat_queries: List[_PasswordRef] = []
+		provenance: List[int] = []  
+		for pw_idx, bases in enumerate(all_bases):
+			for base in bases:
+				if base in self.pcfg_structures:
+					flat_queries.append(_PasswordRef(password=base))
+					provenance.append(pw_idx)
+
+		if not flat_queries:
+			return [[] for _ in passwords]
+
+		results, _ = self.pcfg_model.generate(
+			k=r,
+			mode="honeywords",
+			queries=flat_queries,
+			seed=self.seed,
+			structures=self.pcfg_structures,
+		)
+
+		pw_seen: List[set] = [set() for _ in passwords]
+		pw_sweetwords: List[List[str]] = [[] for _ in passwords]
+
+		for result, pw_idx in zip(results, provenance):
+			_, hw_list = result
+			seen = pw_seen[pw_idx]
+			sweetwords = pw_sweetwords[pw_idx]
+			if len(sweetwords) >= self.k:
+				continue
+			for hw, _ in hw_list:
+				if hw not in seen:
+					seen.add(hw)
+					sweetwords.append(hw)
+					if len(sweetwords) >= self.k:
+						break
+
+		return pw_sweetwords
