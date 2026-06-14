@@ -3,173 +3,259 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Plot flatness graph vs linear baseline")
-	parser.add_argument(
-		"--inputs-dir",
-		type=str,
-		default="outputs",
-		help="Directory containing stats JSON files",
-	)
-	parser.add_argument(
-		"--k",
-		type=int,
-		required=True,
-		help="Number of sweetwords per list",
-	)
-	parser.add_argument(
-		"--out",
-		type=str,
-		default="outputs/flatness_graph.png",
-		help="Output PNG path",
-	)
-	parser.add_argument(
-		"--title",
-		type=str,
-		default="Flatness graph",
-		help="Plot title",
-	)
-	parser.add_argument(
-		"--use-cracked-by-t1",
-		action="store_true",
-		help="Plot normalized cracked_by_t1 if present",
-	)
-	return parser.parse_args()
+    parser = argparse.ArgumentParser(
+        description="Generate honeyword evaluation graphs and a LaTeX metrics table"
+    )
+    parser.add_argument(
+        "--folders",
+        nargs="+",
+        required=True,
+        help="One or more directories containing stats JSON files",
+    )
+    parser.add_argument(
+        "--k",
+        type=int,
+        required=True,
+        help="Number of sweetwords per list",
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=str,
+        default="graphs",
+        help="Output directory for all generated files",
+    )
+    return parser.parse_args()
 
 
-def load_payload(path: str) -> dict:
-	with open(path, "r", encoding="utf-8") as handle:
-		return json.load(handle)
+def load_json(path: Path) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
-def load_flatness_list(payload: dict) -> List[int]:
-	flatness = payload.get("flatness_graph")
-	if not isinstance(flatness, list):
-		raise ValueError("flatness_graph missing or invalid in stats JSON.")
-	return [int(value) for value in flatness]
+def flatness_curve(flatness_graph: List[int], k: int) -> List[float]:
+    """P(real password found within t guesses) for t = 1..k, using per-user rank data."""
+    arr = np.array(flatness_graph)
+    n = len(arr)
+    if n == 0:
+        return []
+    return [float((arr <= t).sum() / n) for t in range(1, k + 1)]
 
 
-def load_cracked_by_t1(payload: dict) -> List[int]:
-	cracked = payload.get("cracked_by_t1")
-	if not isinstance(cracked, list):
-		raise ValueError("cracked_by_t1 missing or invalid in stats JSON.")
-	return [int(value) for value in cracked]
+def success_number_curve(cracked_by_t1: List[int], total_users: int) -> List[float]:
+    """Cumulative fraction of users compromised after t sweetword login attempts."""
+    if not cracked_by_t1 or total_users <= 0:
+        return []
+    return [min(1.0, c / total_users) for c in cracked_by_t1]
 
 
-def success_curve(attempts: Iterable[int], k: int) -> List[Tuple[int, float]]:
-	items = list(attempts)
-	if not items:
-		return []
-	max_attempts = min(k, max(items))
-	results: List[Tuple[int, float]] = []
-	for t in range(1, max_attempts + 1):
-		count = sum(1 for value in items if value <= t)
-		results.append((t, count / len(items)))
-	return results
+def linear_baseline(k: int) -> List[float]:
+    return [t / k for t in range(1, k + 1)]
 
 
-def normalized_curve(cracked_by_t1: Iterable[int], total_users: int) -> List[Tuple[int, float]]:
-	items = list(cracked_by_t1)
-	if not items or total_users <= 0:
-		return []
-	results: List[Tuple[int, float]] = []
-	for idx, count in enumerate(items, start=1):
-		results.append((idx, min(1.0, count / total_users)))
-	return results
+def mean_of_curves(curves: List[List[float]]) -> List[float]:
+    if not curves:
+        return []
+    return list(np.mean(np.array(curves), axis=0))
 
 
-def linear_baseline(k: int) -> List[Tuple[int, float]]:
-	return [(t, min(1.0, t / k)) for t in range(1, k + 1)]
+def load_folder_data(folder: Path, k: int) -> Dict[str, dict]:
+    results: Dict[str, dict] = {}
+    for path in sorted(folder.glob("*.json")):
+        data = load_json(path)
+        flat_list: List[int] = data.get("flatness_graph", [])
+        cracked: List[int] = data.get("cracked_by_t1", [])
+        total_users: int = data.get("attack_stats", {}).get("total_users", len(flat_list))
+
+        results[path.stem] = {
+            "flatness_curve": flatness_curve(flat_list, k) if flat_list else None,
+            "success_curve": success_number_curve(cracked, total_users) if cracked else None,
+            "epsilon_flatness": data.get("epsilon_flatness"),
+            "attack_success_rate": data.get("attack_success_rate"),
+        }
+    return results
 
 
-def plot_flatness(
-	curves: List[Tuple[str, List[Tuple[int, float]]]],
-	k: int,
-	out_path: str,
-	title: str,
+def _save_fig(fig: plt.Figure, out_path: Path) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"Saved {out_path}")
+
+
+def plot_graph(
+    named_curves: Dict[str, Optional[List[float]]],
+    k: int,
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    out_path: Path,
+    baseline: Optional[List[float]] = None,
 ) -> None:
-	baseline = linear_baseline(k)
-	if not curves:
-		raise ValueError("No valid flatness curves to plot.")
+    x = list(range(1, k + 1))
+    fig, ax = plt.subplots(figsize=(8, 5))
 
-	fig, ax = plt.subplots(figsize=(8, 5))
-	base_x, base_y = zip(*baseline)
-	for label, curve in curves:
-		if not curve:
-			continue
-		curve_x, curve_y = zip(*curve)
-		ax.plot(curve_x, curve_y, label=label, linewidth=2)
+    for label, curve in named_curves.items():
+        if curve:
+            ax.plot(x[: len(curve)], curve, label=label, linewidth=1.5)
 
-	ax.plot(base_x, base_y, label="Linear baseline", linestyle="--")
-	ax.set_xlabel("Sweetword login attempts")
-	ax.set_ylabel("Success rate")
-	ax.set_title(title)
-	ax.set_xlim(1, k)
-	ax.set_ylim(0.0, 1.0)
-	ax.grid(True, alpha=0.3)
-	ax.legend()
+    if baseline:
+        ax.plot(
+            x,
+            baseline,
+            label="Linear baseline",
+            linestyle="--",
+            color="black",
+            linewidth=1.2,
+            alpha=0.7,
+        )
 
-	output = Path(out_path)
-	output.parent.mkdir(parents=True, exist_ok=True)
-	fig.tight_layout()
-	fig.savefig(output, dpi=150)
-	plt.close(fig)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xlim(1, k)
+    ax.set_ylim(0.0, 1.0)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8)
+    _save_fig(fig, out_path)
+
+
+def make_latex_table(
+    folder_metrics: Dict[str, Tuple[Optional[float], Optional[float]]]
+) -> str:
+    rows = []
+    for folder_name, (eps, asr) in sorted(folder_metrics.items()):
+        eps_str = f"{eps:.4f}" if eps is not None else "N/A"
+        asr_str = f"{asr * 100:.4f}\\%" if asr is not None else "N/A"
+        rows.append(f"  {folder_name} & {eps_str} & {asr_str} \\\\")
+
+    return "\n".join(
+        [
+            r"\begin{table}[h]",
+            r"\centering",
+            r"\caption{Average Evaluation Metrics per Method}",
+            r"\label{tab:honeyword-metrics}",
+            r"\begin{tabular}{lcc}",
+            r"\hline",
+            r"Method & $\varepsilon$-Flatness $\downarrow$ & Mean Attack Success (\%) $\downarrow$ \\",
+            r"\hline",
+            *rows,
+            r"\hline",
+            r"\end{tabular}",
+            r"\end{table}",
+        ]
+    )
 
 
 def main() -> None:
-	args = parse_args()
-	inputs_dir = Path(args.inputs_dir)
-	if not inputs_dir.exists():
-		raise FileNotFoundError(f"Inputs directory not found: {inputs_dir}")
+    args = parse_args()
+    out_dir = Path(args.out_dir)
+    k = args.k
+    baseline = linear_baseline(k)
 
-	json_files = sorted(inputs_dir.glob("*.json"))
-	if not json_files:
-		raise ValueError(f"No JSON files found in {inputs_dir}")
-	mean_eps_flatness = 0.0
-	for stats_path in json_files:
-		payload = load_payload(str(stats_path))
-		eps_flatness = payload.get("epsilon_flatness")
-		if isinstance(eps_flatness, (int, float)):
-			mean_eps_flatness += eps_flatness
-	mean_eps_flatness /= len(json_files)
-	print(f"Mean epsilon flatness across {len(json_files)} files: {mean_eps_flatness:.4f}")
-	curves: List[Tuple[str, List[Tuple[int, float]]]] = []
-	for stats_path in json_files:
-		payload = load_payload(str(stats_path))
-		try:
-			if args.use_cracked_by_t1:
-				cracked_by_t1 = load_cracked_by_t1(payload)
-				total_users = payload.get("attack_stats", {}).get("total_users")
-				if not isinstance(total_users, int):
-					flatness_list = load_flatness_list(payload)
-					total_users = len(flatness_list)
-				curve = normalized_curve(cracked_by_t1, total_users)
-				k = len(cracked_by_t1)
-			else:
-				flatness_list = load_flatness_list(payload)
-				curve = success_curve(flatness_list, args.k)
-				k = args.k
-		except ValueError:
-			continue
-		curves.append((stats_path.stem, curve))
+    per_folder_avg: Dict[str, dict] = {}
 
-	if args.use_cracked_by_t1 and curves:
-		k = max(len(curve) for _, curve in curves)
-		plot_flatness(curves, k, args.out, args.title)
-		print(f"Saved flatness graph to {args.out}")
-		return
+    for folder_str in args.folders:
+        folder = Path(folder_str)
+        if not folder.is_dir():
+            print(f"Warning: skipping missing folder: {folder}")
+            continue
 
-	plot_flatness(curves, args.k, args.out, args.title)
-	print(f"Saved flatness graph to {args.out}")
+        folder_name = folder.name
+        data = load_folder_data(folder, k)
+        if not data:
+            print(f"Warning: no JSON files in {folder}")
+            continue
+
+        print(f"\n=== {folder_name} ({len(data)} files) ===")
+
+        # Per-folder graphs: one line per dataset file
+        plot_graph(
+            {stem: m["flatness_curve"] for stem, m in data.items()},
+            k,
+            xlabel="Number of sweetword attempts (t)",
+            ylabel="Fraction of users with real password guessed",
+            title=f"Flatness Graph — {folder_name}",
+            out_path=out_dir / folder_name / "flatness.png",
+            baseline=baseline,
+        )
+
+        plot_graph(
+            {stem: m["success_curve"] for stem, m in data.items()},
+            k,
+            xlabel="Number of sweetword attempts (t)",
+            ylabel="Fraction of users compromised",
+            title=f"Success-Number Graph — {folder_name}",
+            out_path=out_dir / folder_name / "success_number.png",
+        )
+
+        valid_flat = [m["flatness_curve"] for m in data.values() if m["flatness_curve"] is not None]
+        valid_succ = [m["success_curve"] for m in data.values() if m["success_curve"] is not None]
+        valid_eps = [m["epsilon_flatness"] for m in data.values() if m["epsilon_flatness"] is not None]
+        valid_asr = [m["attack_success_rate"] for m in data.values() if m["attack_success_rate"] is not None]
+
+        per_folder_avg[folder_name] = {
+            "flatness_curve": mean_of_curves(valid_flat),
+            "success_curve": mean_of_curves(valid_succ),
+            "epsilon_flatness": float(np.mean(valid_eps)) if valid_eps else None,
+            "attack_success_rate": float(np.mean(valid_asr)) if valid_asr else None,
+        }
+
+    if not per_folder_avg:
+        print("No valid data found — exiting.")
+        return
+
+    print("\n=== Aggregate graphs ===")
+
+    # Mean flatness graph: one line per folder
+    plot_graph(
+        {name: stats["flatness_curve"] for name, stats in per_folder_avg.items()},
+        k,
+        xlabel="Number of sweetword attempts (t)",
+        ylabel="Fraction of users with real password guessed",
+        title="Mean Flatness Graph (averaged across datasets per method)",
+        out_path=out_dir / "mean_flatness.png",
+        baseline=baseline,
+    )
+
+    # Mean success-number graph: one line per folder
+    plot_graph(
+        {name: stats["success_curve"] for name, stats in per_folder_avg.items()},
+        k,
+        xlabel="Number of sweetword attempts (t)",
+        ylabel="Fraction of users compromised",
+        title="Mean Success-Number Graph (averaged across datasets per method)",
+        out_path=out_dir / "mean_success_number.png",
+    )
+
+    # LaTeX table
+    latex = make_latex_table(
+        {
+            name: (stats["epsilon_flatness"], stats["attack_success_rate"])
+            for name, stats in per_folder_avg.items()
+        }
+    )
+    table_path = out_dir / "metrics_table.tex"
+    table_path.parent.mkdir(parents=True, exist_ok=True)
+    table_path.write_text(latex, encoding="utf-8")
+    print(f"Saved {table_path}")
+    print("\nLaTeX table:\n")
+    print(latex)
+    print(
+        "\nNote: HWSimilarity and False-Alarm Rate are not present in the output JSONs"
+        " and have been omitted from the table."
+    )
 
 
 if __name__ == "__main__":
-	main()
+    main()
