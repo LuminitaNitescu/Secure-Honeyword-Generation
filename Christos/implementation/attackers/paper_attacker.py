@@ -126,20 +126,19 @@ class PaperAttacker:
         if not remaining:
             return 0.0, None
 
-        # CHANGED: Case 2 score is prpw/prhw; fall back to 0.0 if prhw is zero
-        scores = {
-            word: base_probs[word] / entry._prhw[word] if entry._prhw[word] > 0 else inf
-            for word in remaining
-        }
-        
-        # if denom <= 0:
-        #     fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
-        #     return 0.0, fallback
+        scores = {}
+        for word in remaining:
+            prhw = entry._prhw[word]
+            prpw = base_probs[word]
+            if prhw <= 0.0 or prpw / prhw > 20:
+                scores[word] = prpw
+            else:
+                scores[word] = prpw / prhw
 
         best = max(remaining, key=lambda word: scores[word])
-        
-        if scores[best] == inf:
-            return 1.0, best
+
+        # if scores[best] == inf:
+        #     return 1.0, best
 
         denom = sum(scores.values())
         return scores[best] / denom, best
@@ -167,7 +166,6 @@ class PaperAttacker:
         total_nonzero_prob_words = 0
         
         for entry in entries:
-            # CHANGED: unpack (word, prhw) tuples to get word strings for prob lookup
             entry_probs = {word: self._base_prob(word) for word, _ in entry.sweetwords}
             prob_cache[entry.user_id] = entry_probs
             total_nonzero_prob_words += sum(1 for prob in entry_probs.values() if prob > 0)
@@ -175,26 +173,18 @@ class PaperAttacker:
             if entry.real_password is None:
                 continue
 
-            # CHANGED: compute Case 2 scores for epsilon-flatness calculation
-            scores = {
-                word: entry_probs[word] / entry._prhw[word] if entry._prhw[word] > 0 else inf
-                for word in entry._prhw
-            }
+            scores = {}
+            for word in entry_probs:
+                prhw = entry._prhw[word]
+                prpw = entry_probs[word]
+                if prhw <= 0.0 or prpw / prhw > 20:
+                    scores[word] = prpw
+                else:
+                    scores[word] = prpw / prhw
 
-            # if total <= 0:
-            #     prob = 1.0 / k
-            # else:
-            #     # CHANGED: use case-2 score of real_password instead of raw prpw
-            #     prob = scores.get(entry.real_password, 0.0) / total
-            
-            if entry._prhw.get(entry.real_password, 0.0) == 0.0:
-                prob = 1.0
-            elif any(entry._prhw[w] == 0.0 for w in entry._prhw if w != entry.real_password):
-                prob = 0.0
-            else:
-                best_word = max(entry._prhw, key=lambda w: scores[w])
-                prob = 1.0 if best_word == entry.real_password else 0.0
-            
+            best_word = max(scores, key=lambda w: scores[w])
+            prob = 1.0 if best_word == entry.real_password else 0.0
+
             total_prob += prob
             valid_user_count += 1
 
