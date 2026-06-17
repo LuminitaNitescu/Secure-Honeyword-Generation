@@ -42,6 +42,7 @@ CMD=(
     --t1 "$T1"
     --out-prefix "$OUT_PREFIX"
     --cache-dir "$CACHE_DIR"
+    --success-number
 )
 
 if [[ -n "$T2" ]]; then

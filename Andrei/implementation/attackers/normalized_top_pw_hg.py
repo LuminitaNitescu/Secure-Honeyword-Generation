@@ -341,7 +341,8 @@ class NormalizedTopPWModelHG:
         t1: int = 1,
         t2: Optional[int] = None,
         show_progress: bool = True,
-    ) -> Tuple[AttackStats, List[int], float]:
+        success_number: bool = False,
+    ) -> Tuple[AttackStats, List[int], float, Optional[AttackStats]]:
         entries = list(sweetword_lists)
         prob_cache, epsilon_flatness, total_nonzero = self._build_prob_cache(entries, k)
         print(f"total non-zero probability passwords: {total_nonzero}")
@@ -362,7 +363,21 @@ class NormalizedTopPWModelHG:
             show_progress=show_progress,
         )
 
-        return attack_stats, flatness_graph, epsilon_flatness
+        # Worst-case success-number run: reuse the (expensive) prob cache but force
+        # t2=None so the global guessing campaign runs uncapped until every account
+        # is cracked, yielding the full successes-vs-failures curve.
+        success_number_stats: Optional[AttackStats] = None
+        if success_number:
+            success_lists = self._clone_entries(entries)
+            success_number_stats = self._crack_with_probs(
+                success_lists,
+                prob_cache,
+                t1=t1,
+                t2=None,
+                show_progress=show_progress,
+            )
+
+        return attack_stats, flatness_graph, epsilon_flatness, success_number_stats
 
     def crack(
         self,

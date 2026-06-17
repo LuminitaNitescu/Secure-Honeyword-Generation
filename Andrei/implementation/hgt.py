@@ -219,14 +219,6 @@ def _chaff_by_pcfg(
 	structures: Dict[str, Any],
 	seed: int,
 ) -> List[str]:
-	"""PCFG replacement for _chaff_by_tweaking.
-
-	For each of the l base words (already guaranteed to have PCFG structures
-	after the filtered KNN step), generates r = k // l honeywords by doing a
-	weighted random grammar walk.  Results from all bases are collected in
-	round-robin order and deduplicated; any shortfall is filled by re-sampling
-	from the last base.
-	"""
 	honeywords_list = list(honeywords)
 	r = k // l
 	seen: set = set()

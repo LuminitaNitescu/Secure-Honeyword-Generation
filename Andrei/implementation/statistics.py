@@ -14,6 +14,9 @@ class HoneygenStats:
 	flatness_graph: List[int]
 	cracked_by_t1: Optional[List[int]] = None
 	attack_stats: Optional[dict] = None
+	# Worst-case (t2=None) attack stats, including the full success-number curve.
+	# Only populated when the success-number run is requested.
+	success_number: Optional[dict] = None
 
 
 def _base_prob(attacker: NormalizedTopPWModelHG, word: str) -> float:

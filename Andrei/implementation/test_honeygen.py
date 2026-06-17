@@ -71,6 +71,14 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--t1", type=int, default=1)
 	parser.add_argument("--t2", type=int, default=None)
 	parser.add_argument(
+		"--success-number",
+		action="store_true",
+		help=(
+			"Additionally run an uncapped (t2=None) worst-case attack to produce "
+			"the success-number curve and store it in the output JSON."
+		),
+	)
+	parser.add_argument(
 		"--limit",
 		type=int,
 		default=None,
@@ -249,12 +257,13 @@ def main() -> None:
 	attacker = NormalizedTopPWModelHG(db_path=DATASET_MAP[args.attacker_dataset], dataset_size=DATASET_SIZE_MAP.get(args.attacker_dataset, 50_000)) 
 
 	print("Running attacker analysis...")
-	attack_stats, flatness_graph, epsilon_flatness = attacker.analyze(
+	attack_stats, flatness_graph, epsilon_flatness, success_number_stats = attacker.analyze(
 		sweetword_lists,
 		k=args.k,
 		t1=args.t1,
 		t2=args.t2,
 		show_progress=progress_enabled,
+		success_number=args.success_number,
 	)
 	cracked_by_t1 = compute_cracked_by_t1(flatness_graph, args.k)
 
@@ -272,6 +281,7 @@ def main() -> None:
 		flatness_graph=flatness_graph,
 		cracked_by_t1=cracked_by_t1,
 		attack_stats=asdict(attack_stats),
+		success_number=asdict(success_number_stats) if success_number_stats else None,
 	)
 
 	outputs_dir = Path("outputs")

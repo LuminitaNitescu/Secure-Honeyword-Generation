@@ -51,11 +51,38 @@ def flatness_curve(flatness_graph: List[int], k: int) -> List[float]:
     return [float((arr <= t).sum() / n) for t in range(1, k + 1)]
 
 
-def success_number_curve(cracked_by_t1: List[int], total_users: int) -> List[float]:
-    """Cumulative fraction of users compromised after t sweetword login attempts."""
-    if not cracked_by_t1 or total_users <= 0:
-        return []
-    return [min(1.0, c / total_users) for c in cracked_by_t1]
+def success_number_points(
+    attack_stats: dict,
+) -> Optional[Tuple[List[int], List[int]]]:
+    """Raw success-number campaign: (failed logins, successful logins) pairs.
+
+    This is the population-wide curve produced by the global guessing attack:
+    x = total honeyword logins (alarms raised), y = total real-password logins.
+    """
+    if not attack_stats:
+        return None
+    curve = attack_stats.get("success_curve")
+    if not curve:
+        return None
+    failures = [int(pt[0]) for pt in curve]
+    successes = [int(pt[1]) for pt in curve]
+    return failures, successes
+
+
+def normalize_success_points(
+    points: Tuple[List[int], List[int]], total_users: int
+) -> Tuple[List[float], List[float]]:
+    """Normalise both axes by the user count so unequal-N methods are comparable.
+
+    x -> failed logins per account, y -> fraction of accounts compromised.
+    """
+    failures, successes = points
+    if total_users <= 0:
+        return [], []
+    return (
+        [f / total_users for f in failures],
+        [s / total_users for s in successes],
+    )
 
 
 def linear_baseline(k: int) -> List[float]:
@@ -73,12 +100,19 @@ def load_folder_data(folder: Path, k: int) -> Dict[str, dict]:
     for path in sorted(folder.glob("*.json")):
         data = load_json(path)
         flat_list: List[int] = data.get("flatness_graph", [])
-        cracked: List[int] = data.get("cracked_by_t1", [])
-        total_users: int = data.get("attack_stats", {}).get("total_users", len(flat_list))
+        attack_stats: dict = data.get("attack_stats", {})
+        total_users: int = attack_stats.get("total_users", len(flat_list))
+        succ_points = success_number_points(attack_stats)
 
         results[path.stem] = {
             "flatness_curve": flatness_curve(flat_list, k) if flat_list else None,
-            "success_curve": success_number_curve(cracked, total_users) if cracked else None,
+            "success_points": succ_points,
+            "success_points_norm": (
+                normalize_success_points(succ_points, total_users)
+                if succ_points
+                else None
+            ),
+            "total_users": total_users,
             "epsilon_flatness": data.get("epsilon_flatness"),
             "attack_success_rate": data.get("attack_success_rate"),
         }
@@ -128,6 +162,73 @@ def plot_graph(
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=8)
     _save_fig(fig, out_path)
+
+
+def plot_success_number(
+    named_points: Dict[str, Optional[Tuple[List[float], List[float]]]],
+    title: str,
+    out_path: Path,
+    k: Optional[int] = None,
+    xlabel: str = "Failed login attempts (honeyword hits / alarms)",
+    ylabel: str = "Successful login attempts (real passwords found)",
+) -> None:
+    """Success-number graph: successful logins (y) vs failed logins (x).
+
+    Each guess across the whole user population is played in global confidence
+    order; a success is a real-password login, a failure is a honeyword login.
+    """
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    max_x = 0.0
+    for label, pts in named_points.items():
+        if not pts:
+            continue
+        xs, ys = pts
+        if not xs:
+            continue
+        ax.plot(xs, ys, label=label, linewidth=1.5)
+        max_x = max(max_x, xs[-1])
+
+    # Ideal flat HGT: every sweetword equally likely to be real, so in the
+    # worst-case campaign each success costs (k-1) failures -> slope 1/(k-1).
+    if k and k > 1 and max_x > 0:
+        ax.plot(
+            [0, max_x],
+            [0, max_x / (k - 1)],
+            label=f"Ideal flat HGT (slope 1/(k-1)={1 / (k - 1):.3f})",
+            linestyle="--",
+            color="black",
+            linewidth=1.2,
+            alpha=0.7,
+        )
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8)
+    _save_fig(fig, out_path)
+
+
+def mean_success_curve(
+    curves: List[Tuple[List[float], List[float]]], num_points: int = 200
+) -> Optional[Tuple[List[float], List[float]]]:
+    """Average several (x, y) success-number curves onto a common x grid.
+
+    Curves differ in length and range, so each is interpolated (monotone step
+    via np.interp) onto a shared x grid before averaging.
+    """
+    curves = [(xs, ys) for xs, ys in curves if xs and ys]
+    if not curves:
+        return None
+    max_x = max(xs[-1] for xs, _ in curves)
+    if max_x <= 0:
+        return None
+    grid = np.linspace(0.0, max_x, num_points)
+    stacked = np.array([np.interp(grid, xs, ys) for xs, ys in curves])
+    return list(grid), list(stacked.mean(axis=0))
 
 
 def make_latex_table(
@@ -190,23 +291,23 @@ def main() -> None:
             baseline=baseline,
         )
 
-        plot_graph(
-            {stem: m["success_curve"] for stem, m in data.items()},
-            k,
-            xlabel="Number of sweetword attempts (t)",
-            ylabel="Fraction of users compromised",
+        # Success-number graph: raw successful vs failed logins, one line per file.
+        plot_success_number(
+            {stem: m["success_points"] for stem, m in data.items()},
             title=f"Success-Number Graph — {folder_name}",
             out_path=out_dir / folder_name / "success_number.png",
+            k=k,
         )
 
         valid_flat = [m["flatness_curve"] for m in data.values() if m["flatness_curve"] is not None]
-        valid_succ = [m["success_curve"] for m in data.values() if m["success_curve"] is not None]
+        valid_succ_norm = [m["success_points_norm"] for m in data.values() if m["success_points_norm"]]
         valid_eps = [m["epsilon_flatness"] for m in data.values() if m["epsilon_flatness"] is not None]
         valid_asr = [m["attack_success_rate"] for m in data.values() if m["attack_success_rate"] is not None]
 
         per_folder_avg[folder_name] = {
             "flatness_curve": mean_of_curves(valid_flat),
-            "success_curve": mean_of_curves(valid_succ),
+            # Normalised per account so methods with different N are comparable.
+            "success_curve": mean_success_curve(valid_succ_norm),
             "epsilon_flatness": float(np.mean(valid_eps)) if valid_eps else None,
             "attack_success_rate": float(np.mean(valid_asr)) if valid_asr else None,
         }
@@ -228,14 +329,14 @@ def main() -> None:
         baseline=baseline,
     )
 
-    # Mean success-number graph: one line per folder
-    plot_graph(
+    # Mean success-number graph: one line per folder (normalised per account).
+    plot_success_number(
         {name: stats["success_curve"] for name, stats in per_folder_avg.items()},
-        k,
-        xlabel="Number of sweetword attempts (t)",
-        ylabel="Fraction of users compromised",
         title="Mean Success-Number Graph (averaged across datasets per method)",
         out_path=out_dir / "mean_success_number.png",
+        k=k,
+        xlabel="Failed logins per account (alarms raised)",
+        ylabel="Fraction of accounts compromised",
     )
 
     # LaTeX table
