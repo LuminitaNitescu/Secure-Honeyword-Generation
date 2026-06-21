@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Tweakable parameters
 VENV="$PWD/.venv"
-TARGET_DATASET="data/50k_subsample/rockyou_sorted_preprocessed.txt"
+DATASET="youku"   # chegg-com | dropbox | linkedin | yahoo | rockyou | dubsmash-com | youku
+TARGET_DATASET="data/50k_subsample/${DATASET}_sorted_preprocessed.txt"
 # "data/50k_subsample/rockyou_sorted_preprocessed.txt"
 # "data/50k_subsample/dropbox_sorted_preprocessed.txt"
 # "data/50k_subsample/linkedin_sorted_preprocessed.txt"
@@ -12,7 +13,7 @@ TARGET_DATASET="data/50k_subsample/rockyou_sorted_preprocessed.txt"
 # "data/50k_subsample/dubsmash-com_sorted_preprocessed.txt"
 # "data/50k_subsample/youku_sorted_preprocessed.txt"
 ATTACKER_DATASET="hashmob_counts"   # chegg-com | dropbox | linkedin | yahoo | all
-MODEL_PATH="honeygen_models/model_trained_on_rockyou_500_epochs.bin"
+MODEL_PATH="honeygen_models/model_trained_on_${DATASET}_500_epochs.bin"
 K=20
 L=10
 SEED=67
@@ -41,6 +42,7 @@ CMD=(
     --t1 "$T1"
     --out-prefix "$OUT_PREFIX"
     --cache-dir "$CACHE_DIR"
+    --success-number
 )
 
 if [[ -n "$T2" ]]; then

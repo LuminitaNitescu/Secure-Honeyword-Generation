@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 import random
 
 from utils.embedding import EmbeddingBackend
@@ -48,13 +48,42 @@ class TweakParams:
 	)
 
 
-def _chaff_by_model(password: str, l: int, backend: EmbeddingBackend) -> List[str]:
-	honeywords = [password]
-	if l <= 1:
-		return honeywords
-	neighbors = backend.nearest_neighbors(password, l - 1)
-	honeywords.extend(neighbors)
-	return honeywords
+@dataclass(frozen=True)
+class _PasswordRef:
+    """Minimal stand-in for UserData when calling PCFGModel.generate()."""
+    password: str
+
+
+def _chaff_by_model(
+	password: str,
+	l: int,
+	backend: EmbeddingBackend,
+	structures: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+	needed = l - 1
+	if needed <= 0:
+		return [password]
+
+	if structures is None:
+		return [password] + backend.nearest_neighbors(password, needed)
+
+	# PCFG-aware: expand the KNN batch until we have `needed` neighbors that
+	# all have known PCFG structures.  Each doubling is a strict superset since
+	# FastText returns results in similarity order.
+	batch = needed
+	max_batch = needed * 32
+
+	while batch <= max_batch:
+		candidates = backend.nearest_neighbors(password, batch)
+		valid = [c for c in candidates if c != password and c in structures]
+		if len(valid) >= needed:
+			return [password] + valid[:needed]
+		batch *= 2
+
+	# Best effort: return however many valid neighbors were found.
+	candidates = backend.nearest_neighbors(password, max_batch)
+	valid = [c for c in candidates if c != password and c in structures]
+	return [password] + valid[:needed]
 
 
 def _tweak_password(
@@ -182,6 +211,65 @@ def chaffing_with_a_hybrid_model(
 	return _chaff_by_tweaking(honeywords, k, l, rng, params)
 
 
+def _chaff_by_pcfg(
+	honeywords: Iterable[str],
+	k: int,
+	l: int,
+	pcfg_model: Any,
+	structures: Dict[str, Any],
+	seed: int,
+) -> List[str]:
+	honeywords_list = list(honeywords)
+	r = k // l
+	seen: set = set()
+	results: List[str] = []
+
+	for i, base in enumerate(honeywords_list):
+		if base not in structures:
+			continue
+		generated, _ = pcfg_model.generate(
+			k=r,
+			mode="honeywords",
+			queries=[_PasswordRef(password=base)],
+			seed=seed + i,
+			structures=structures,
+		)
+		if not generated:
+			continue
+		_, hw_list = generated[0]   # [[hw, prob], ...]
+		for hw, _ in hw_list:
+			if hw not in seen:
+				seen.add(hw)
+				results.append(hw)
+				if len(results) >= k:
+					return results
+
+	# Fill any shortfall by re-sampling from whichever bases still have structures.
+	valid_bases = [b for b in honeywords_list if b in structures]
+	attempts = 0
+	max_attempts = (k - len(results)) * 20
+	while len(results) < k and valid_bases and attempts < max_attempts:
+		attempts += 1
+		base = valid_bases[attempts % len(valid_bases)]
+		generated, _ = pcfg_model.generate(
+			k=1,
+			mode="honeywords",
+			queries=[_PasswordRef(password=base)],
+			seed=seed + attempts,
+			structures=structures,
+		)
+		if not generated:
+			continue
+		_, hw_list = generated[0]
+		for hw, _ in hw_list:
+			if hw not in seen:
+				seen.add(hw)
+				results.append(hw)
+				break
+
+	return results
+
+
 class HoneywordGenerator:
 	def __init__(
 		self,
@@ -190,27 +278,85 @@ class HoneywordGenerator:
 		l: int,
 		seed: int,
 		tweak_params: TweakParams | None = None,
+		pcfg_model: Any = None,
+		pcfg_structures: Optional[Dict[str, Any]] = None,
 	) -> None:
 		self.backend = backend
 		self.k = k
 		self.l = l
+		self.seed = seed
 		self.rng = random.Random(seed)
 		self.params = tweak_params or TweakParams()
+		self.pcfg_model = pcfg_model
+		self.pcfg_structures = pcfg_structures
 
 	def generate(self, password: str) -> List[str]:
-		return _chaff_by_tweaking(
-			[password],
+		if self.pcfg_model is not None and self.pcfg_structures is not None:
+			base_words = _chaff_by_model(
+				password, self.l, self.backend, structures=self.pcfg_structures
+			)
+			return _chaff_by_pcfg(
+				base_words,
+				self.k,
+				self.l,
+				self.pcfg_model,
+				self.pcfg_structures,
+				self.seed,
+			)
+
+		return chaffing_with_a_hybrid_model(
+			password,
 			self.k,
 			self.l,
+			self.backend,
 			self.rng,
-			self.params,	
+			self.params,
 		)
 
-		# return chaffing_with_a_hybrid_model(
-		# 	password,
-		# 	self.k,
-		# 	self.l,
-		# 	self.backend,
-		# 	self.rng,
-		# 	self.params,
-		# )
+	def generate_batch(self, passwords: List[str]) -> List[List[str]]:
+		if self.pcfg_model is None or self.pcfg_structures is None:
+			return [self.generate(pw) for pw in passwords]
+
+		r = self.k // self.l
+
+		all_bases: List[List[str]] = [
+			_chaff_by_model(pw, self.l, self.backend, structures=self.pcfg_structures)
+			for pw in passwords
+		]
+
+		flat_queries: List[_PasswordRef] = []
+		provenance: List[int] = []  
+		for pw_idx, bases in enumerate(all_bases):
+			for base in bases:
+				if base in self.pcfg_structures:
+					flat_queries.append(_PasswordRef(password=base))
+					provenance.append(pw_idx)
+
+		if not flat_queries:
+			return [[] for _ in passwords]
+
+		results, _ = self.pcfg_model.generate(
+			k=r,
+			mode="honeywords",
+			queries=flat_queries,
+			seed=self.seed,
+			structures=self.pcfg_structures,
+		)
+
+		pw_seen: List[set] = [set() for _ in passwords]
+		pw_sweetwords: List[List[str]] = [[] for _ in passwords]
+
+		for result, pw_idx in zip(results, provenance):
+			_, hw_list = result
+			seen = pw_seen[pw_idx]
+			sweetwords = pw_sweetwords[pw_idx]
+			if len(sweetwords) >= self.k:
+				continue
+			for hw, _ in hw_list:
+				if hw not in seen:
+					seen.add(hw)
+					sweetwords.append(hw)
+					if len(sweetwords) >= self.k:
+						break
+
+		return pw_sweetwords
