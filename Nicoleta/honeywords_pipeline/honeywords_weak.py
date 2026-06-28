@@ -15,7 +15,7 @@ from common import (
     add_chunks, add_chunk_num, chaffing_by_qwen4b_chunk, AI_MODEL,
 )
 
-print(f"[1/3] Loading passwords from {BREACH_PASSWORDS_OUT}")
+print(f"Loading passwords from {BREACH_PASSWORDS_OUT}")
 df = pd.read_csv(BREACH_PASSWORDS_OUT)
 if "pw" not in df.columns:
     df = df.rename(columns={df.columns[0]: "pw"})
@@ -27,7 +27,7 @@ random.seed(42)
 sampled = random.sample(df["pw"].tolist(), min(1_000_000, len(df)))
 df = pd.DataFrame({"pw": sampled})
 
-print("\n[2/3] Scoring with zxcvbn and selecting weak passwords...")
+print("\nScoring with zxcvbn and selecting weak passwords...")
 strength = []
 for row in tqdm(df.itertuples(), total=len(df), desc="Scoring", unit="pw"):
     strength.append(zxcvbn(row.pw)["score"])
@@ -41,7 +41,7 @@ weak_pw_chunks = add_chunk_num(add_chunks(weak_pw))
 weak_pw_chunks.to_csv(f"weak_pw_chunks_{NUM_USER}_breach.csv", index=False)
 print(f"Chunked {len(weak_pw_chunks)} passwords → weak_pw_chunks_{NUM_USER}_breach.csv")
 
-print(f"\n[3/3] Generating honeywords (model: {AI_MODEL})...")
+print(f"\nGenerating honeywords (model: {AI_MODEL})...")
 print("Make sure Ollama is running: `ollama serve`")
 
 start = time.time()

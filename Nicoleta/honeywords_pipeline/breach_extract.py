@@ -13,7 +13,7 @@ from common import BREACH_DATA_DIR, BREACH_PASSWORDS_OUT
 
 _ASCII_ONLY = re.compile(r'^[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:\'",.<>?/\\|`~]+$')
 
-
+# Extracts the passwords (in the dataset, they are username:password)
 def extract(src_dir=BREACH_DATA_DIR, out_path=BREACH_PASSWORDS_OUT):
     if os.path.exists(out_path):
         print(f"Already exists: {out_path}, delete it to re-extract.")

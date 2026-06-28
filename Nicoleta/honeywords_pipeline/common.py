@@ -5,7 +5,6 @@ import concurrent.futures
 from tqdm import tqdm
 from ckl_psm import ckl_pcfg as psm
 
-# Root of the repo, one level above this file's directory
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 NUM_SWEETWORDS    = 20
@@ -13,13 +12,13 @@ NUM_USER          = 10 # number of real passwords to generate honeywords for
 BREACH_DATA_DIR   = os.path.join(_ROOT, "BreachCompilation", "data") # path to the data directory of the BreachCompilation for 4iQ
 BREACH_PASSWORDS_OUT = os.path.join(_ROOT, "breach_passwords_unique_email_8_32.csv")
 OLLAMA_BASE_URL   = "http://localhost:11434/v1"
-AI_MODEL          = "qwen3:4b-instruct"
+AI_MODEL          = "qwen3:4b-instruct"  # can switch to different model
 
-# openai==0.28 uses module-level config instead of a client object
+
 openai.api_base = OLLAMA_BASE_URL
 openai.api_key  = "ollama"
 
-
+# obtain the chunks for a password
 def add_chunks(df):
     chunks = []
     for row in tqdm(df.itertuples(), total=len(df), desc="Chunking", unit="pw"):
@@ -30,19 +29,19 @@ def add_chunks(df):
     df["chunks"] = chunks
     return df
 
-
+# get the number of chunks for a password
 def add_chunk_num(df):
     df = df.copy()
     df["num_chunks"] = df["chunks"].apply(len)
     return df
 
-
+# replace the keys in a string with their corresponding values from a dictionary
 def replace_all(text, dic):
     for i, j in dic.items():
         text = text.replace(i, j)
     return text
 
-
+# generate honeywords for a password with openai
 def qwen4b_honeywords_chunk(real_password, chunks):
     prompt = (
         "Derive 19 distinct passwords that are similar to " + real_password
@@ -76,11 +75,11 @@ def qwen4b_honeywords_chunk(real_password, chunks):
 
     dupes = [w for w in results if w == real_password]
     if dupes:
-        print(f"[warn] Removed {len(dupes)} honeyword(s) identical to the real password ({real_password!r})")
+        print(f"Removed {len(dupes)} honeyword(s) identical to the real password ({real_password!r})")
     results = [w for w in results if w != real_password]
     return results[:NUM_SWEETWORDS - 1]
 
-
+# call the function to generate honeywords in multiple threads to speed up
 def chaffing_by_qwen4b_chunk(df):
     sweetwords = {}
     total = len(df)

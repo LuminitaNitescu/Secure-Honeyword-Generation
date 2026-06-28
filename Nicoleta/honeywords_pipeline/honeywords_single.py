@@ -10,7 +10,7 @@ import sys
 from ckl_psm import ckl_pcfg as psm
 from common import qwen4b_honeywords_chunk, replace_all, AI_MODEL
 
-
+# get the chunks for a password and return them as a string
 def get_chunks(password):
     result = psm.check_pwd(password)
     chunk_set = set(list(zip(*result["chunks"]))[0])
