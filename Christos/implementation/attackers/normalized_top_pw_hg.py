@@ -11,23 +11,17 @@ from tqdm import tqdm
 @dataclass
 class SweetwordList:
     user_id: str
-    sweetwords: List[Tuple[str, float]]
+    sweetwords: List[str]
     real_password: Optional[str] = None
     num_failure: int = 0
     attempted: set[str] = field(default_factory=set)
     _index: Dict[str, int] = field(init=False, repr=False)
-    # ADDED: stores prhw per word, extracted from sweetwords tuples
-    _prhw: Dict[str, float] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        # CHANGED: unpack (word, prhw) tuples when building index
-        self._index = {word: idx for idx, (word, _) in enumerate(self.sweetwords)}
-        # ADDED: build prhw lookup from sweetwords tuples
-        self._prhw = {word: prhw for word, prhw in self.sweetwords}
+        self._index = {word: idx for idx, word in enumerate(self.sweetwords)}
 
     def remaining(self) -> List[str]:
-        # CHANGED: unpack tuples; still returns plain strings
-        return [word for word, _ in self.sweetwords if word not in self.attempted]
+        return [word for word in self.sweetwords if word not in self.attempted]
 
 
 @dataclass
@@ -43,8 +37,15 @@ class AttackStats:
     success_curve: List[Tuple[int, int]]
 
 
-class PaperAttacker:
+class NormalizedTopPWModelHG:
     def __init__(self, db_path: str, dataset_size: int) -> None:
+        """
+        Initializes the model for disk-based binary search.
+        
+        :param db_path: Path to the 5GB cleartext-sorted file (password:count)
+        :param dataset_size: The total sum of all counts in the dataset, required 
+                             for accurate probability generation.
+        """
         self.db_path = db_path
         self.dataset_size = dataset_size
         
@@ -54,102 +55,109 @@ class PaperAttacker:
             raise ValueError("Dataset size must be strictly greater than 0.")
 
     def _binary_search_count(self, target_word: str) -> int:
+        """
+        Performs a zero-RAM binary search directly on the SSD to find the count.
+        Assumes the file is sorted by the password column using LC_ALL=C.
+        """
         file_size = os.path.getsize(self.db_path)
         low = 0
         high = file_size
+
+        # We encode to bytes to ensure perfect matching with LC_ALL=C Unix sorting
         target_bytes = target_word.encode('utf-8')
 
         with open(self.db_path, 'rb') as f:
             while low < high:
                 mid = (low + high) // 2
                 f.seek(mid)
+
+                # If we jump into the middle of the file, we are likely in the 
+                # middle of a word. Read and discard until the next newline.
                 if mid > 0:
                     f.readline()
+
                 line_bytes = f.readline()
                 if not line_bytes:
-                    break
+                    break  # EOF reached
+
                 try:
+                    # Decode and safely right-split by the colon
                     line_str = line_bytes.decode('utf-8').rstrip('\r\n')
                     current_word, count_str = line_str.rsplit(':', 1)
                     current_count = int(count_str)
                 except ValueError:
+                    # If we hit a malformed line, gracefully advance the lower bound
                     low = f.tell()
                     continue
+
                 current_bytes = current_word.encode('utf-8')
+
+                # Binary search logic
                 if current_bytes == target_bytes:
                     return current_count
                 elif current_bytes < target_bytes:
                     low = f.tell()
                 else:
                     high = mid
-        return 0
 
-    def _base_prob(self, word: str):
+        return 0  # Word not found in the HIBP dataset
+
+    def _base_prob(self, word: str) -> float:
+        """
+        Fetches the exact count from disk and returns its normalized probability.
+        """
         count = self._binary_search_count(word)
-        if count > 0:
-            return count / self.dataset_size, False
-        return 1.0 / (self.dataset_size + 1), True
+        if count > 0 and self.dataset_size > 0:
+            return count / self.dataset_size
+        return 0.0
 
     def _get_sweetword(self, entry: SweetwordList) -> Tuple[float, Optional[str], int]:
+        #print(f"from sweetword list: {entry.sweetwords}")
         remaining = entry.remaining()
         if not remaining:
             return 0.0, None, 0
             
         base_probs = {word: self._base_prob(word) for word in remaining}
+        #print(f"base probabilities: {base_probs}")
         nonzero_probs = [prob for prob in base_probs.values() if prob > 0]
-
-        # CHANGED: Case 2 score is prpw/prhw; fall back to 0.0 if prhw is zero
-        scores = {
-            word: base_probs[word] / entry._prhw[word] if entry._prhw.get(word, 0.0) > 0 else inf
-            for word in remaining
-        }
-
-        denom = sum(scores.values())
+            
+        denom = sum(base_probs.values())
         
-        # if denom <= 0:
-        #     fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
-        #     return 0.0, fallback, len(nonzero_probs)
+        if denom <= 0:
+            # All zero probabilities: fall back to list order so we still attempt up to t1.
+            fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
+            return 0.0, fallback, len(nonzero_probs)
             
         best = max(
             remaining,
-            key=lambda word: (scores[word], -entry._index.get(word, 0)),
+            key=lambda word: (base_probs[word], -entry._index.get(word, 0)),
         )
-        # CHANGED: normalise by sum of case-2 scores instead of sum of prpw
-        return scores[best] / denom, best, len(nonzero_probs)
+        return base_probs[best] / denom, best, len(nonzero_probs)
 
     def _get_sweetword_with_probs(
         self,
         entry: SweetwordList,
-        base_probs: Dict[str, tuple],
+        base_probs: Dict[str, float],
     ) -> Tuple[float, Optional[str]]:
         remaining = entry.remaining()
         if not remaining:
             return 0.0, None
 
-        scores = {}    
-        for word in remaining:
-            prhw = entry._prhw[word]
-            prpw, smoothed = base_probs[word]
-            if prhw <= 0.0:
-                scores[word] = prpw
-            elif smoothed and prpw / prhw > 1:
-                scores[word] = 1
-            else:
-                scores[word] = prpw / prhw
+        denom = sum(base_probs.get(word, 0.0) for word in remaining)
+        if denom <= 0:
+            fallback = min(remaining, key=lambda word: entry._index.get(word, 0))
+            return 0.0, fallback
 
-        best = max(remaining, key=lambda word: scores[word])
-
-        # if scores[best] == inf:
-        #     return 1.0, best
-
-        denom = sum(scores.values())
-        return scores[best] / denom, best
+        best = max(
+            remaining,
+            key=lambda word: (base_probs.get(word, 0.0), -entry._index.get(word, 0)),
+        )
+        return base_probs.get(best, 0.0) / denom, best
 
     def _clone_entries(self, entries: Iterable[SweetwordList]) -> List[SweetwordList]:
         return [
             SweetwordList(
                 user_id=entry.user_id,
-                # CHANGED: preserve (word, prhw) tuples when cloning
                 sweetwords=list(entry.sweetwords),
                 real_password=entry.real_password,
             )
@@ -160,52 +168,44 @@ class PaperAttacker:
         self,
         entries: Iterable[SweetwordList],
         k: int,
-    ) -> Tuple[Dict[str, Dict[str, tuple]], float, int]:
-        prob_cache: Dict[str, Dict[str, tuple]] = {}
+    ) -> Tuple[Dict[str, Dict[str, float]], float, int]:
+        prob_cache: Dict[str, Dict[str, float]] = {}
         
-        total_prob = 0.0
+        valid_user_count = 0
+        total_nonzero_prob_words = 0
+        
+        prob_cache: Dict[str, Dict[str, float]] = {}
+    
+        successful_guesses = 0.0
         valid_user_count = 0
         total_nonzero_prob_words = 0
         
         for entry in entries:
-            
-            entry_probs = {}
-            for word, _ in entry.sweetwords:
-                prob, smoothed = self._base_prob(word)
-                entry_probs[word] = (prob, smoothed)
-                if prob > 0:
-                    total_nonzero_prob_words += 1
+            entry_probs = {word: self._base_prob(word) for word in entry.sweetwords}
             prob_cache[entry.user_id] = entry_probs
+            
+            total_nonzero_prob_words += sum(1 for prob in entry_probs.values() if prob > 0)
 
             if entry.real_password is None:
                 continue
-
-            scores = {}
-            for word in entry_probs:
-                prhw = entry._prhw[word]
-                prpw, smoothed = entry_probs[word]
-                
-                if prhw <= 0.0:
-                    scores[word] = prpw
-                elif smoothed and prpw / prhw > 1:
-                    scores[word] = 1
-                else:
-                    scores[word] = prpw / prhw
-
-            best_word = max(scores, key=lambda w: scores[w])
-            prob = 1.0 if best_word == entry.real_password else 0.0
-
-            total_prob += prob
+            
             valid_user_count += 1
 
-        empirical_epsilon_flatness = (total_prob / valid_user_count) if valid_user_count > 0 else 0.0
+            max_prob = max(entry_probs.values())
+            
+            best_guesses = [word for word, prob in entry_probs.items() if prob == max_prob]
+            
 
-        return prob_cache, empirical_epsilon_flatness, total_nonzero_prob_words
+            if entry.real_password in best_guesses:
+                successful_guesses += (1.0 / len(best_guesses))
 
+        model_success_rate = (successful_guesses / valid_user_count) if valid_user_count > 0 else 0.0
+
+        return prob_cache, model_success_rate, total_nonzero_prob_words
     def _crack_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
-        prob_cache: Dict[str, Dict[str, tuple]],
+        prob_cache: Dict[str, Dict[str, float]],
         t1: int = 1,
         t2: Optional[int] = None,
         show_progress: bool = True,
@@ -302,7 +302,7 @@ class PaperAttacker:
     def _flatness_graph_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
-        prob_cache: Dict[str, Dict[str, tuple]],
+        prob_cache: Dict[str, Dict[str, float]],
         show_progress: bool = True,
     ) -> List[int]:
         results: List[int] = []
@@ -312,13 +312,13 @@ class PaperAttacker:
             for entry in entries
             if entry.real_password is not None
         }
-        for i, entry in enumerate(tqdm(
+        for entry in tqdm(
             entries,
             total=len(entries),
             desc="Flatness graph",
             unit="users",
             disable=not show_progress,
-        )):
+        ):
             attempts = 0
             while True:
                 priority, word = self._get_sweetword_with_probs(
@@ -341,7 +341,8 @@ class PaperAttacker:
         t1: int = 1,
         t2: Optional[int] = None,
         show_progress: bool = True,
-    ) -> Tuple[AttackStats, List[int], float]:
+        success_number: bool = False,
+    ) -> Tuple[AttackStats, List[int], float, Optional[AttackStats]]:
         entries = list(sweetword_lists)
         prob_cache, epsilon_flatness, total_nonzero = self._build_prob_cache(entries, k)
         print(f"total non-zero probability passwords: {total_nonzero}")
@@ -362,7 +363,21 @@ class PaperAttacker:
             show_progress=show_progress,
         )
 
-        return attack_stats, flatness_graph, epsilon_flatness
+        # Worst-case success-number run: reuse the (expensive) prob cache but force
+        # t2=None so the global guessing campaign runs uncapped until every account
+        # is cracked, yielding the full successes-vs-failures curve.
+        success_number_stats: Optional[AttackStats] = None
+        if success_number:
+            success_lists = self._clone_entries(entries)
+            success_number_stats = self._crack_with_probs(
+                success_lists,
+                prob_cache,
+                t1=t1,
+                t2=None,
+                show_progress=show_progress,
+            )
+
+        return attack_stats, flatness_graph, epsilon_flatness, success_number_stats
 
     def crack(
         self,

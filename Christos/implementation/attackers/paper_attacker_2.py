@@ -84,11 +84,9 @@ class PaperAttacker:
                     high = mid
         return 0
 
-    def _base_prob(self, word: str):
+    def _base_prob(self, word: str) -> float:
         count = self._binary_search_count(word)
-        if count > 0:
-            return count / self.dataset_size, False
-        return 1.0 / (self.dataset_size + 1), True
+        return count / self.dataset_size
 
     def _get_sweetword(self, entry: SweetwordList) -> Tuple[float, Optional[str], int]:
         remaining = entry.remaining()
@@ -120,20 +118,18 @@ class PaperAttacker:
     def _get_sweetword_with_probs(
         self,
         entry: SweetwordList,
-        base_probs: Dict[str, tuple],
+        base_probs: Dict[str, float],
     ) -> Tuple[float, Optional[str]]:
         remaining = entry.remaining()
         if not remaining:
             return 0.0, None
 
-        scores = {}    
+        scores = {}
         for word in remaining:
             prhw = entry._prhw[word]
-            prpw, smoothed = base_probs[word]
-            if prhw <= 0.0:
+            prpw = base_probs[word]
+            if prhw <= 0.0 or prpw / prhw > 20:
                 scores[word] = prpw
-            elif smoothed and prpw / prhw > 1:
-                scores[word] = 1
             else:
                 scores[word] = prpw / prhw
 
@@ -160,22 +156,17 @@ class PaperAttacker:
         self,
         entries: Iterable[SweetwordList],
         k: int,
-    ) -> Tuple[Dict[str, Dict[str, tuple]], float, int]:
-        prob_cache: Dict[str, Dict[str, tuple]] = {}
+    ) -> Tuple[Dict[str, Dict[str, float]], float, int]:
+        prob_cache: Dict[str, Dict[str, float]] = {}
         
         total_prob = 0.0
         valid_user_count = 0
         total_nonzero_prob_words = 0
         
         for entry in entries:
-            
-            entry_probs = {}
-            for word, _ in entry.sweetwords:
-                prob, smoothed = self._base_prob(word)
-                entry_probs[word] = (prob, smoothed)
-                if prob > 0:
-                    total_nonzero_prob_words += 1
+            entry_probs = {word: self._base_prob(word) for word, _ in entry.sweetwords}
             prob_cache[entry.user_id] = entry_probs
+            total_nonzero_prob_words += sum(1 for prob in entry_probs.values() if prob > 0)
 
             if entry.real_password is None:
                 continue
@@ -183,12 +174,9 @@ class PaperAttacker:
             scores = {}
             for word in entry_probs:
                 prhw = entry._prhw[word]
-                prpw, smoothed = entry_probs[word]
-                
-                if prhw <= 0.0:
+                prpw = entry_probs[word]
+                if prhw <= 0.0 or prpw / prhw > 20:
                     scores[word] = prpw
-                elif smoothed and prpw / prhw > 1:
-                    scores[word] = 1
                 else:
                     scores[word] = prpw / prhw
 
@@ -205,7 +193,7 @@ class PaperAttacker:
     def _crack_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
-        prob_cache: Dict[str, Dict[str, tuple]],
+        prob_cache: Dict[str, Dict[str, float]],
         t1: int = 1,
         t2: Optional[int] = None,
         show_progress: bool = True,
@@ -302,7 +290,7 @@ class PaperAttacker:
     def _flatness_graph_with_probs(
         self,
         sweetword_lists: Iterable[SweetwordList],
-        prob_cache: Dict[str, Dict[str, tuple]],
+        prob_cache: Dict[str, Dict[str, float]],
         show_progress: bool = True,
     ) -> List[int]:
         results: List[int] = []
