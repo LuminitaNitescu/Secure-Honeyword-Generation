@@ -27,7 +27,7 @@ random.seed(42)
 sampled = random.sample(df["pw"].tolist(), min(1_000_000, len(df)))
 df = pd.DataFrame({"pw": sampled})
 
-print("\nScoring with zxcvbn and selecting strong passwords...")
+print("\nScoring with zxcvbn and selecting strong passwords")
 strength = []
 for row in tqdm(df.itertuples(), total=len(df), desc="Scoring", unit="pw"):
     strength.append(zxcvbn(row.pw)["score"])
@@ -39,9 +39,9 @@ print(f"Saved strong_pw_{NUM_USER}_breach.csv")
 
 strong_pw_chunks = add_chunk_num(add_chunks(strong_pw))
 strong_pw_chunks.to_csv(f"strong_pw_chunks_{NUM_USER}_breach.csv", index=False)
-print(f"Chunked {len(strong_pw_chunks)} passwords → strong_pw_chunks_{NUM_USER}_breach.csv")
+print(f"Chunked {len(strong_pw_chunks)} passwords to strong_pw_chunks_{NUM_USER}_breach.csv")
 
-print(f"\nGenerating honeywords (model: {AI_MODEL})...")
+print(f"\nGenerating honeywords (model: {AI_MODEL})")
 print("Make sure Ollama is running: `ollama serve`")
 
 start = time.time()

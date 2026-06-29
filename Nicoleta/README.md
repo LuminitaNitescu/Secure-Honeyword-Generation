@@ -42,3 +42,10 @@ Full pipeline (all steps):
 python chunk_gpt_implementation.py
 ```
 Modules can also be run independently.
+
+## Additional modules
+`run_attack.py` and `run_attack_qwen.py` were used to run a Normalized Top-PW attacker on the honeyword csv files, to measure metrics like the flatness and success number graph. They correspond to two different LLMs, which had differently formatted output.
+
+`hw_similarity.py` measures the average HWSimilarity across a csv of honeywords, based on the original paper method.
+
+`count_honeywords.py` counts the number of rows in the honeyword csv file where the number of honeywords is at least 19 (as required) and in how many rows the real password was duplicated among honeywords.

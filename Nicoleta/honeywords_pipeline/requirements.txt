@@ -3,3 +3,5 @@ pandas
 tqdm
 zxcvbn
 ckl-psm
+sentence-transformers
+torch

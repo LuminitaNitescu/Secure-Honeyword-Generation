@@ -94,5 +94,5 @@ def chaffing_by_qwen4b_chunk(df):
             pw, honeywords = future.result()
             sweetwords[pw] = honeywords
             if (idx + 1) % 100 == 0 or (idx + 1) == total:
-                print(f"{idx + 1}/{total} passwords processed...")
+                print(f"{idx + 1}/{total} passwords processed")
     return sweetwords

@@ -70,18 +70,18 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Loading sweetword lists from CSV...")
+    print("Loading sweetword lists from CSV")
     sweetword_lists = load_sweetword_lists(csv_path)
     k = len(sweetword_lists[0].sweetwords) if sweetword_lists else 20
     print(f"Loaded {len(sweetword_lists)} users, k={k}")
 
-    print("Initialising attacker...")
+    print("Initialising attacker")
     attacker = NormalizedTopPWModelHG(
         db_path=args.attacker_db,
         dataset_size=args.dataset_size,
     )
 
-    print("Running attack analysis...")
+    print("Running attack analysis")
     attack_stats, flatness_graph, epsilon_flatness, success_number_stats = attacker.analyze(
         sweetword_lists,
         k=k,
