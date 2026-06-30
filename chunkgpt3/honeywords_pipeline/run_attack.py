@@ -15,9 +15,9 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "Andrei" / "implementation"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "honeygen" / "implementation"))
 
-# use the attacker from Andrei's implementation
+# use the attacker from honeygen implementation
 from attackers.normalized_top_pw_hg import NormalizedTopPWModelHG, SweetwordList
 from statistics import (
     HoneygenStats,

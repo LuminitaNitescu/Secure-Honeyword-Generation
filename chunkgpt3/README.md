@@ -8,7 +8,7 @@ Generates honeywords for passwords from the BreachCompilation dataset using a lo
 pip install -r requirements.txt
 ```
 
-Ollama must be running with the model pulled:
+Ollama must be running with the model pulled. Example:
 
 ```bash
 ollama pull qwen3:4b-instruct
@@ -44,7 +44,7 @@ python chunk_gpt_implementation.py
 Modules can also be run independently.
 
 ## Additional modules
-`run_attack.py` and `run_attack_qwen.py` were used to run a Normalized Top-PW attacker on the honeyword csv files, to measure metrics like the flatness and success number graph. They correspond to two different LLMs, which had differently formatted output.
+`run_attack.py` and `run_attack_qwen.py` were used to run a Normalized Top-PW attacker on the honeyword csv files, to measure metrics like the flatness and success number graph. They correspond to two different LLMs, which had differently formatted output. They use the attacker from honeygen.
 
 `hw_similarity.py` measures the average HWSimilarity across a csv of honeywords, based on the original paper method.
 
