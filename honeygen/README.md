@@ -1,19 +1,9 @@
 # HoneyGen — Modular Honeyword Generation (HGT)
 
-This folder contains a modular re-implementation of the **HoneyGen HGT** (Honeyword Generation via representation learning) model, originally published at the [This Bitbucket Link](https://bitbucket.org/srecgrp/honeygen-generating-honeywords-using-representation-learning/src/master/).
+This folder contains a modular re-implementation of the **HoneyGen HGT** (Honeyword Generation via representation learning) model, originally published at [This Bitbucket Link](https://bitbucket.org/srecgrp/honeygen-generating-honeywords-using-representation-learning/src/master/).
 
 The implementation extends the original design with pluggable embedding backends, a PCFG-hybrid generation mode, and a full evaluation pipeline (attacker simulation, flatness metrics, graph output).
 
----
-
-
-| Strategy | How it works |
-|---|---|
-| **Hybrid (HGT)** | Find _l_ nearest neighbours in FastText embedding space, then generate _k_ tweaked variants per neighbour |
-| **PCFG-Hybrid** | Find _l_ nearest neighbours in FastText embedding space (filtered to known PCFG structures), then generate _k_ variants via PCFG sampling |
-| **Tweaking only** | Apply character-level probabilistic mutations directly to a password |
-
----
 
 ## Layout
 
