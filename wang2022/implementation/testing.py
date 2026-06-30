@@ -12,7 +12,7 @@ parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-other_implement_dir = str(Path(__file__).resolve().parent.parent.parent / "Andrei" / "implementation")
+other_implement_dir = str(Path(__file__).resolve().parent.parent.parent / "honeygen" / "implementation")
 
 if other_implement_dir not in sys.path:
     sys.path.append(other_implement_dir)
@@ -100,7 +100,7 @@ def main() -> None:
     #         passwords.append(UserData(password=password))
     #         passwords_pure.append([password])
 
-    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_targeted_ts.csv", "r", encoding="utf-8") as infile:
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\synthetic_rockyou_ts.csv", "r", encoding="utf-8") as infile:
 
         reader = csv.reader(infile)
 
@@ -127,7 +127,7 @@ def main() -> None:
             
     #         data_train.append([password])
     
-    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_targeted_tr.csv", "r", encoding="utf-8") as infile:
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\synthetic_rockyou_tr.csv", "r", encoding="utf-8") as infile:
 
         reader = csv.reader(infile)
         
@@ -176,7 +176,7 @@ def main() -> None:
     #                                   dataset_size=221418)
     # attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_counts.txt", 
     #                                   dataset_size=23136055988) 
-    attacker = NormalizedTopPWModelHG(db_path=r"C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_targeted_attacker_counts.txt", 
+    attacker = NormalizedTopPWModelHG(db_path=r"C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\synthetic_attacker_counts.txt", 
                                       dataset_size=32_602_874) 
     # attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_targeted_counts.txt", 
     #                                   dataset_size=100_000_000) 

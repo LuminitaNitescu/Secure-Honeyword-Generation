@@ -1,19 +1,33 @@
 #!/bin/bash
 
 MODEL_NAME="markov" # list | markov | pcfg | tarmarkov | tarlist | tarpcfg
-# MODEL_PATH="RockYouUltraFinal"
-MODEL_PATH="../trained_models/markov3.pickle"
-# MODEL_PATH=""
+
+# If you would like to load a trained PCFG/TarPCFG
+# MODEL_PATH="RockYouRules"
+
+# If you would like to load a trained Markov/TarMarkov or TarList model
+# MODEL_PATH="../trained_models/markov.pickle"
+
+MODEL_PATH=""
 K=20
 SEED=67
 T1=20
 T2=61
-TRAIN_PATH=""
-# TRAIN_PATH="../data/rockyou_final_tr.txt"
-TEST_PATH="../data/test.txt"
-MODE="honeywords" # honeywords | experiments
-ATTACKER_PATH="../data/"
-ATTACKER_SIZE=10000000
+
+# Parameter configuration for experiments on non-targeted models
+TRAIN_PATH="../data/rockyou_final_tr.txt"
+TEST_PATH="../data/rockyou_final_ts.txt"
+ATTACKER_PATH="../data/hashmob_counts.txt"
+ATTACKER_SIZE=23136055988
+
+# Parameter configuration for experiments on targeted models
+# TRAIN_PATH="../data/synthetic.rockyou_tr.csv"
+# TEST_PATH="../data/synthetic.rockyou_ts.csv"
+# ATTACKER_PATH="../data/synthetic_attacker_counts.txt"
+# ATTACKER_SIZE=32602874
+
+MODE="experiments" # honeywords | experiments
+
 SAVE_PATH="../results"
 
 if [[ -z "$VIRTUAL_ENV" && -z "$CONDA_DEFAULT_ENV" ]]; then

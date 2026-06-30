@@ -2,6 +2,20 @@
 
 This guide explains how to set up your environment, run, and experiment with the List, Markov, PCFG, TarList, TarMarkov, and TarPCFG models.
 
+## 0. (Optional) Fetch synthetic datasets using Git LFS
+
+If you would like to run experiments using the **Targeted Trawling-guessing Attacker**, you can download the synthetic datasets we used for our evaluation. They will be fetched automatically to `wang2022/data/` if you have Git LFS already installed on your system, otherwise please run:
+
+```bash
+git lfs install
+```
+
+And then:
+
+```bash
+git lfs pull
+```
+
 ## 1. Activate a Virtual Environment
 
 If you haven't done so already, please set up and activate a virtual environment (preferrably using Conda) to keep project dependencies isolated.
@@ -23,19 +37,23 @@ Open `run_models.sh` in a text editor and set the variables at the top of the fi
 | `MODEL_PATH` | **Optional** path to a pretrained model file. Can be left empty if a `TRAIN_PATH` is supplied to train a new model | `../trained_models/markov.pickle` |
 | `K` | Number of honeywords / candidates to generate | `20` |
 | `SEED` | Random seed for reproducibility | `67` |
-| `T1` | First threshold/tuning parameter | `20` |
-| `T2` | Second threshold/tuning parameter | `61` |
-| `TRAIN_PATH` | **Optional** path to training data. Can be left emply if `MODEL_PATH` is suppied | `../data2/rockyou_final_tr.txt` |
-| `TEST_PATH` | Path to test data | `../data/rockyou_tr.txt` |
-| `MODE` | Script execution mode. Use `experiments` to generate honeywords and run the **Trawling-guessing Attacker** against them, or use `honeywords` if you just want the generated honeyword strings. | `honeywords`, `experiments` |
-| `ATTACKER_PATH` | **Optional** path to attacker dataset. Can be left empty if script is run in `honeywords` mode | `../data/` |
-| `ATTACKER_SIZE` | **Optional** size of attacker dataset. Can be left empty if script is run in `honeywords` mode | `10000000` |
+| `T1` | Per-user threshold | `20` |
+| `T2` | System-wide threshold | `61` |
+| `TRAIN_PATH` | **Optional** path to training data. Can be left emply if `MODEL_PATH` is suppied | `../data/rockyou_final_tr.txt` |
+| `TEST_PATH` | Path to test data | `../data/rockyou_final_ts.txt` |
+| `MODE` | Script execution mode. Use `experiments` to generate honeywords and run the **(Targeted) Trawling-guessing Attacker** against them, or use `honeywords` if you just want the generated honeyword strings. | `honeywords`, `experiments` |
+| `ATTACKER_PATH` | **Optional** path to attacker dataset. Can be left empty if script is run in `honeywords` mode | `../data/hashmob_counts.txt` |
+| `ATTACKER_SIZE` | **Optional** size of attacker dataset. Can be left empty if script is run in `honeywords` mode | `23136055988` |
 | `SAVE_PATH` | Directory where results will be saved | `../results` |
 
 Once configured, run the script from the directory it lives in:
 ```bash
 bash run_models.sh
 ```
+
+*Note*: If you want to run the PCFG or TarPCFG models specifically, the `MODEL_PATH` parameter corresponds to the PCFG Rules name rather than a path. These Rules are stored in `wang2022\implementation\legacy_pcfg_master\python_pcfg_cracker_version3\Rules`. If you want to train a PCFG/TarPCFG and store the rules with a specific name, please supply a `MODEL_PATH` alongside a `TRAIN_PATH`, otherwise the resulting Rules will be saved with the name "Default".
+
+*Note 2*: All models support the `MODEL_PATH` parameter except the List model, which requires a `TRAIN_PATH` every time.
 
 ## 4. Check results / Generate flatness - success number curves
 
@@ -44,7 +62,7 @@ After the run completes, results will be saved to the directory specified in `SA
 - If you ran the script in `experiments` mode, you will find the results in JSON format for each evaluated model in a separate subfolder inside `SAVE_PATH`. The JSON files will be titled as `<MODEL_NAME>_<K>_<T1>_<T2>_experiment.json`. Assuming you have run experiments for the List and Markov models, you may generate flatness and success number curves for these results by executing:
 
 ```bash
-python Andrei/implementation/graphs.py --k <K> --folders Christos/<SAVE_PATH>/list + Christos/<SAVE_PATH>/markov
+python honeygen/implementation/graphs.py --k <K> --folders wang2022/<SAVE_PATH>/list + wang2022/<SAVE_PATH>/markov
 ```
 
 ## Required dataset structures
