@@ -72,10 +72,10 @@ Run the full attack comparison on the default dataset (RockYou, 5000 users):
 python attacks/run_all_attacks.py
 ```
 
-Run a single attacker with custom parameters:
+Run a specific attacker with custom parameters:
 
 ```
-python attacks/run_all_attacks.py --dataset yahoo --n-users 10000 --train-size 10000
+python run_attack_evolving_model.py --target-dataset rockyou --attacker-dataset hashmob_counts --train-size 5000 --num-users 5000 --k 20 --t1 20 --t2 61 --seed 67
 ```
 
 List available target datasets:

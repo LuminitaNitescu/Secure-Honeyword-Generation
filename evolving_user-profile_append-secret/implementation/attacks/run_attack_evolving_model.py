@@ -404,12 +404,13 @@ def main() -> None:
         db_path=attacker_path,
         dataset_size=dataset_size,
     )
-    attack_stats, flatness_graph, epsilon_flatness, _ = attacker.analyze(
+    attack_stats, flatness_graph, epsilon_flatness, success_number_stats = attacker.analyze(
         sweetword_lists=entries,
         k=args.k,
         t1=args.t1,
         t2=args.t2,
         show_progress=show_progress,
+        success_number=True,
     )
 
     # cracked_by_t1 and attack_success_rate are derived the same way as in
@@ -473,6 +474,7 @@ def main() -> None:
         'flatness_graph':       flatness_graph,
         'cracked_by_t1':        cracked_by_t1,
         'attack_stats':         asdict(attack_stats),
+        'success_number':       asdict(success_number_stats) if success_number_stats else None,
     }
     save_results(results, output_path)
 
