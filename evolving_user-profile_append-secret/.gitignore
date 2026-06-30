@@ -1,0 +1,15 @@
+# Datasets
+datasets/*.txt
+datasets/*.csv
+datasets/*.json
+
+# Database files
+implementation/*.json
+implementation/attacks/outputs/*.json
+implementation/attacks/outputs/*.txt
+implementation/attacks/outputs/*.png
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
