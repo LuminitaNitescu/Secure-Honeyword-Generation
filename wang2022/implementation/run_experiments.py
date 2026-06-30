@@ -171,7 +171,7 @@ def run_experiment(model_name: str, k: int, t1: int, t2: int, sweetword_lists: l
 		success_number=asdict(success_number_stats) if success_number_stats else None,
 	)
     
-    output_path = Path(save_path) / "list"
+    output_path = Path(save_path) / model_name
     os.makedirs(output_path, exist_ok=True) 
     output_path = output_path / f"{model_name}_{k}_{t1}_{t2}_experiment.json"
     write_stats_json(stats, str(output_path))
