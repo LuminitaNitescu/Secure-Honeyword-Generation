@@ -325,7 +325,7 @@ def gen_synthetic_data_attacker():
     total_rows = 100_000_000
     
     passwords = []
-    for line in open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data2\\hashmob_counts.txt", "r", encoding="utf-8", errors='ignore'):
+    for line in open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_counts.txt", "r", encoding="utf-8", errors='ignore'):
         
         length = len(passwords)
         if length >= total_rows:

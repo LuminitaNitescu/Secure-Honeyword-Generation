@@ -10,13 +10,13 @@ parent_dir = str(Path(__file__).resolve().parent.parent.parent)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-other_implement_dir = str(Path(__file__).resolve().parent.parent.parent / "Andrei" / "implementation")
+other_implement_dir = str(Path(__file__).resolve().parent.parent.parent / "honeygen" / "implementation")
 
 if other_implement_dir not in sys.path:
     sys.path.append(other_implement_dir)
 
-from Andrei.implementation.attackers.normalized_top_pw_hg import NormalizedTopPWModelHG, SweetwordList
-from Andrei.implementation.statistics import (
+from honeygen.implementation.attackers.normalized_top_pw_hg import NormalizedTopPWModelHG, SweetwordList
+from honeygen.implementation.statistics import (
 	HoneygenStats,
 	compute_attack_success_rate,
 	compute_cracked_by_t1,

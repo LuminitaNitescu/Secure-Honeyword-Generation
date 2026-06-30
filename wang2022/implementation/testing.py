@@ -18,8 +18,8 @@ if other_implement_dir not in sys.path:
     sys.path.append(other_implement_dir)
 
 # from attackers.paper_attacker import PaperAttacker, SweetwordList
-from Andrei.implementation.attackers.normalized_top_pw_hg import NormalizedTopPWModelHG, SweetwordList
-from Andrei.implementation.statistics import (
+from honeygen.implementation.attackers.normalized_top_pw_hg import NormalizedTopPWModelHG, SweetwordList
+from honeygen.implementation.statistics import (
 	HoneygenStats,
 	compute_attack_success_rate,
 	compute_cracked_by_t1,
@@ -88,7 +88,7 @@ def main() -> None:
     
     passwords = []
     passwords_pure = []
-    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data2\\rockyou_final_ts.txt", "r", encoding="utf-8") as f:
+    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_final_ts.txt", "r", encoding="utf-8") as f:
     #     for line in f:
     #         password = line.strip()
     #         if not password:
@@ -100,23 +100,26 @@ def main() -> None:
     #         passwords.append(UserData(password=password))
     #         passwords_pure.append([password])
 
-    # with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data2\rockyou_targeted_ts.csv", "r", encoding="utf-8") as infile:
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_targeted_ts.csv", "r", encoding="utf-8") as infile:
 
-    #     reader = csv.reader(infile)
+        reader = csv.reader(infile)
 
-    #     next(reader, None)
-    #     for row in reader:
+        next(reader, None)
+        for row in reader:
             
-    #         if len(passwords) >= 50_000:
-    #             break
+            if len(passwords) >= 50_000:
+                break
             
-    #         if row:
-    #             passwords.append(UserData(password=row[0], email=row[3], username=row[5], first_name=row[1], last_name=row[2], birthday=row[4]))
-    #             passwords_pure.append([row[0], row[3], row[5], row[1], row[2], row[4]])
+            if row:
+                # passwords.append(UserData(password=row[0], email=row[3], username=row[5], first_name=row[1], last_name=row[2], birthday=row[4]))
+                # passwords_pure.append([row[0], row[3], row[5], row[1], row[2], row[4]])
+                
+                passwords.append(UserData(password=row[0]))
+                passwords_pure.append([row[0]])
 
     # 2. Initialize model and build sweetword lists
     data_train = []
-    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data2\\rockyou_final_tr.txt", "r", encoding="utf-8") as f:
+    # with open("C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_final_tr.txt", "r", encoding="utf-8") as f:
     #     for line in f:
     #         password = line.strip()
     #         if not password:
@@ -124,21 +127,23 @@ def main() -> None:
             
     #         data_train.append([password])
     
-    # with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data2\rockyou_targeted_tr.csv", "r", encoding="utf-8") as infile:
+    with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\rockyou_targeted_tr.csv", "r", encoding="utf-8") as infile:
 
-    #     reader = csv.reader(infile)
+        reader = csv.reader(infile)
         
-    #     next(reader, None)
+        next(reader, None)
 
-    #     data_train = [row for row in reader if row]
+        # data_train = [row for row in reader if row]
+        
+        data_train = [row[0] for row in reader if row]
     
     # model = MarkovModel(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\trained_models\markov3.pickle")
     # model = TargetedMarkovModel()
     
     # model = TargetedListModel(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\trained_models\list_targeted2.pickle")
-    # model = ListModel()
+    model = ListModel()
     
-    # model.load_data(data=data_train)
+    model.load_data(data=data_train)
     
     # model = TargetedPCFGModel()
     # model.load_data(data=data_train, rule_name="RockYouUltraFinal")
@@ -147,14 +152,14 @@ def main() -> None:
     # structures = _get_structures(data=passwords_pure, targeted=True)
     # structures = _get_structures(data=passwords_pure)
     
-    # sweetword_lists_unprocessed = model.generate(queries=passwords, k=k, seed=seed)
+    sweetword_lists_unprocessed = model.generate(queries=passwords, k=k, seed=seed)
     # sweetword_lists_unprocessed = model.generate(queries=passwords, k=k, seed=seed, structures=structures)
 
-    # with open('tarpcfg_sweetwords.pickle', 'wb') as f:
+    # with open('markov_a2_sweetwords', 'wb') as f:
     #         pickle.dump(sweetword_lists_unprocessed, f, protocol=pickle.HIGHEST_PROTOCOL)
     
-    with open("tarmarkov_sweetwords.pickle", "rb") as f:
-        sweetword_lists_unprocessed = pickle.load(f)
+    # with open("markov_a2_sweetwords.pickle", "rb") as f:
+    #     sweetword_lists_unprocessed = pickle.load(f)
         
     sweetword_lists = []
     for idx, sweetwords in enumerate(sweetword_lists_unprocessed):
@@ -171,10 +176,10 @@ def main() -> None:
     #                                   dataset_size=221418)
     # attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_counts.txt", 
     #                                   dataset_size=23136055988) 
-    # attacker = NormalizedTopPWModelHG(db_path=r"C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data2\\rockyou_targeted_attacker_counts.txt", 
-    #                                   dataset_size=32_602_874) 
-    attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data2\\hashmob_targeted_counts.txt", 
-                                      dataset_size=100_000_000) 
+    attacker = NormalizedTopPWModelHG(db_path=r"C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_targeted_attacker_counts.txt", 
+                                      dataset_size=32_602_874) 
+    # attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\hashmob_targeted_counts.txt", 
+    #                                   dataset_size=100_000_000) 
     # attacker = PaperAttacker(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_final_tr_counts.txt", 
     #                                   dataset_size=16_300_127) 
     
@@ -200,10 +205,10 @@ def main() -> None:
 		success_number=asdict(success_number_stats) if success_number_stats else None,
 	)
     
-    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\markov_targeted_a2_attacker_hashmob.json")
+    write_stats_json(stats, "C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\results\\list_a2_attacker_full.json")
 
 
-    # attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data2\\rockyou_final_tr_counts.txt", 
+    # attacker = NormalizedTopPWModelHG(db_path="C:\\Users\\ctamv\\Documents\\CS\\CS4710\\Secure-Honeyword-Generation\\Christos\\data\\rockyou_final_tr_counts.txt", 
     #                                   dataset_size=16_300_160) 
     
     # attack_stats, flatness_graph, epsilon_flatness, success_number_stats = attacker.analyze(
