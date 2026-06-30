@@ -1,0 +1,7 @@
+.conda/
+*.pyc
+wang2022/trained_models
+wang2022/implementation/legacy_pcfg_master/python_pcfg_cracker_version3/Rules
+wang2022/data
+wang2022/results
+graphs/
