@@ -69,6 +69,21 @@ def success_number_points(
     return failures, successes
 
 
+def normalize_success_points(
+    pts: Optional[Tuple[List[int], List[int]]], total_users: int
+) -> Optional[Tuple[List[float], List[float]]]:
+    """Normalize a success-number curve by total_users.
+
+    Dividing both axes by total_users makes curves from different population
+    sizes (e.g. 50 k vs 10 k) directly comparable:
+      x = honeyword hits per user, y = fraction of users cracked.
+    """
+    if not pts or total_users <= 0:
+        return None
+    xs, ys = pts
+    return [x / total_users for x in xs], [y / total_users for y in ys]
+
+
 def linear_baseline(k: int) -> List[float]:
     return [t / k for t in range(1, k + 1)]
 
@@ -94,6 +109,7 @@ def load_folder_data(folder: Path, k: int) -> Dict[str, dict]:
         results[path.stem] = {
             "flatness_curve": flatness_curve(flat_list, k) if flat_list else None,
             "success_points": succ_points,
+            "norm_success_points": normalize_success_points(succ_points, total_users),
             "total_users": total_users,
             "epsilon_flatness": data.get("epsilon_flatness"),
             "attack_success_rate": data.get("attack_success_rate"),
@@ -153,6 +169,7 @@ def plot_success_number(
     k: Optional[int] = None,
     xlabel: str = "Failed login attempts (honeyword hits / alarms)",
     ylabel: str = "Successful login attempts (real passwords found)",
+    ylim: Optional[Tuple[float, float]] = None,
 ) -> None:
     """Success-number graph: successful logins (y) vs failed logins (x).
 
@@ -188,7 +205,10 @@ def plot_success_number(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xlim(left=0)
-    ax.set_ylim(bottom=0)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    else:
+        ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=8)
     _save_fig(fig, out_path)
@@ -283,6 +303,7 @@ def main() -> None:
 
         valid_flat = [m["flatness_curve"] for m in data.values() if m["flatness_curve"] is not None]
         valid_succ = [m["success_points"] for m in data.values() if m["success_points"]]
+        valid_norm_succ = [m["norm_success_points"] for m in data.values() if m["norm_success_points"]]
         valid_eps = [m["epsilon_flatness"] for m in data.values() if m["epsilon_flatness"] is not None]
         valid_asr = [m["attack_success_rate"] for m in data.values() if m["attack_success_rate"] is not None]
 
@@ -290,6 +311,8 @@ def main() -> None:
             "flatness_curve": mean_of_curves(valid_flat),
             # Raw failed/successful login counts, averaged across datasets per method.
             "success_curve": mean_success_curve(valid_succ),
+            # Normalized curves (both axes / total_users) — comparable across population sizes.
+            "norm_success_curve": mean_success_curve(valid_norm_succ),
             "epsilon_flatness": float(np.mean(valid_eps)) if valid_eps else None,
             "attack_success_rate": float(np.mean(valid_asr)) if valid_asr else None,
         }
@@ -314,9 +337,21 @@ def main() -> None:
     # Mean success-number graph: one line per folder (raw counts, averaged across datasets).
     plot_success_number(
         {name: stats["success_curve"] for name, stats in per_folder_avg.items()},
-        title="Mean Success-Number Graph (averaged across datasets per method)",
+        title="Mean Success-Number (averaged across datasets per method)",
         out_path=out_dir / "mean_success_number.png",
         k=k,
+    )
+
+    # Normalized mean success-number graph: axes divided by total_users so methods
+    # with different population sizes (e.g. 50 k vs 10 k) are directly comparable.
+    plot_success_number(
+        {name: stats["norm_success_curve"] for name, stats in per_folder_avg.items()},
+        title="Norm Mean Success-Number",
+        out_path=out_dir / "mean_success_number_normalized.png",
+        k=k,
+        xlabel="Honeyword hits (alarms) per user",
+        ylabel="Fraction of users cracked",
+        ylim=(0.0, 1.0),
     )
 
     # LaTeX table
