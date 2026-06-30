@@ -2,19 +2,9 @@
 
 This guide explains how to set up your environment, run, and experiment with the List, Markov, PCFG, TarList, TarMarkov, and TarPCFG models.
 
-## 0. (Optional) Fetch synthetic datasets using Git LFS
+## 0. (Optional) Download synthetic datasets
 
-If you would like to run experiments using the **Targeted Trawling-guessing Attacker**, you can download the synthetic datasets we used for our evaluation. They will be fetched automatically to `wang2022/data/` if you have Git LFS already installed on your system, otherwise please run:
-
-```bash
-git lfs install
-```
-
-And then:
-
-```bash
-git lfs pull
-```
+If you would like to run experiments using the **Targeted Trawling-guessing Attacker**, you can download the synthetic datasets we used for our evaluation here: https://drive.google.com/drive/folders/1SJGUzmjuPFohmraZrJ7dqF2f3G-OnJsC?usp=sharing
 
 ## 1. Activate a Virtual Environment
 
@@ -98,3 +88,17 @@ python honeygen/implementation/graphs.py --k <K> --folders wang2022/<SAVE_PATH>/
     SUMMERSee:2402
     lawyers1817:124
     ```
+
+## Implementation structure
+
+* List and TarList implementations can be found in `list.py`
+
+* Markov and TarMarkov implementations can be found in `markov.py`
+
+* PCFG and TarPCFG implementations can be found in `pcfg.py`, which in turn uses a heavily customized version of Weir's PCFG implementation found in `legacy_pcfg_master`
+
+* Various utility functions used as part of the generation logic can be found in `util.py`
+
+* Various data processing functions used throughout the research to, for instance, create the synthetic datasets, can be found in `data_processing.py`
+
+* `run_experiments.py` acts as the entry point/main control of the honeyword generation and experiments.
