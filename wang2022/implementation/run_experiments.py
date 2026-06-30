@@ -227,9 +227,9 @@ def main():
             model_path=model_path,
             replacement=False,
         )
-        
+
         run_experiment(
-            model_name=model_path, 
+            model_name=model_name, 
             k=k, 
             t1=t1, 
             t2=t2, 

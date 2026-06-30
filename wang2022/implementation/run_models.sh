@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MODEL_NAME="markov" # list | markov | pcfg | tarmarkov | tarlist | tarpcfg
+MODEL_NAME="list" # list | markov | pcfg | tarmarkov | tarlist | tarpcfg
 
 # If you would like to load a trained PCFG/TarPCFG
 # MODEL_PATH="RockYouRules"
@@ -8,7 +8,6 @@ MODEL_NAME="markov" # list | markov | pcfg | tarmarkov | tarlist | tarpcfg
 # If you would like to load a trained Markov/TarMarkov or TarList model
 # MODEL_PATH="../trained_models/markov.pickle"
 
-MODEL_PATH=""
 K=20
 SEED=67
 T1=20
@@ -21,8 +20,8 @@ ATTACKER_PATH="../data/hashmob_counts.txt"
 ATTACKER_SIZE=23136055988
 
 # Parameter configuration for experiments on targeted models
-# TRAIN_PATH="../data/synthetic.rockyou_tr.csv"
-# TEST_PATH="../data/synthetic.rockyou_ts.csv"
+# TRAIN_PATH="../data/synthetic_rockyou_tr.csv"
+# TEST_PATH="../data/synthetic_rockyou_ts.csv"
 # ATTACKER_PATH="../data/synthetic_attacker_counts.txt"
 # ATTACKER_SIZE=32602874
 

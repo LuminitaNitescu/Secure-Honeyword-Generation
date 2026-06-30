@@ -79,14 +79,14 @@ def _process_password(args):
     
     idx, i = args
     
-    pw = i.password
-    fn = i.first_name
-    ln = i.last_name
-    bd = i.birthday[0:2]
-    bm = i.birthday[2:4]
-    by = i.birthday[4:8]
-    un = i.username
-    em = i.email.split("@")[0]
+    pw = i[0]
+    fn = i[3]
+    ln = i[4]
+    bd = i[5][0:2]
+    bm = i[5][2:4]
+    by = i[5][4:8]
+    un = i[2]
+    em = i[1].split("@")[0]
     
     tags = dict()
     tags[_chars[0]] = f"{fn}{ln}"
@@ -164,7 +164,7 @@ def _generate_for_single_password_targeted(args):
             tags[_chars[21]] = regex.group(1)
             tags[_chars[22]] = regex.group(2)
     
-    pw_processed = _process_password((0, query))
+    pw_processed = _process_password((0, [query.password, query.email, query.username, query.first_name, query.last_name, query.birthday]))
     pw_prob = _worker_model.counts.get(pw_processed, 0) / _worker_model.size
     
     if replacement:
@@ -226,8 +226,8 @@ class TargetedListModel():
         self.size = len(data)
         self.counts = Counter(data_processed)
         
-        os.makedirs('./Christos/trained_models', exist_ok=True)
-        with open('./Christos/trained_models/list_targeted.pickle', 'wb') as f:
+        os.makedirs('../trained_models', exist_ok=True)
+        with open('../trained_models/list_targeted.pickle', 'wb') as f:
             pickle.dump({"data": self.data, "size": self.size, "counts": self.counts}, f)
             
     def generate(self, k: int, queries: list[UserData]=None, seed: int=None, replacement: bool = False):

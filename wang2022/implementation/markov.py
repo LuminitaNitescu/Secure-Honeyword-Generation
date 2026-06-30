@@ -143,8 +143,8 @@ class MarkovModel():
                 
         self._preprocess()
         
-        os.makedirs('./Christos/trained_models', exist_ok=True)
-        with open('./Christos/trained_models/markov.pickle', 'wb') as f:
+        os.makedirs('../trained_models', exist_ok=True)
+        with open('../trained_models/markov.pickle', 'wb') as f:
             pickle.dump({"starts": self.starts, "chain": self.chain}, f)
      
     def prob_pw(self, word: str) -> float:
@@ -419,8 +419,8 @@ class TargetedMarkovModel():
                 
         self._preprocess()
     
-        os.makedirs('./Christos/trained_models', exist_ok=True)
-        with open('./Christos/trained_models/targeted_markov.pickle', 'wb') as f:
+        os.makedirs('../trained_models', exist_ok=True)
+        with open('../trained_models/targeted_markov.pickle', 'wb') as f:
             pickle.dump({"starts": self.starts, "chain": self.chain}, f)
      
     def prob_pw(self, word: str, user_data: UserData) -> float:
