@@ -21,7 +21,7 @@ ATTACKER_DATASET="hashmob_counts"   # chegg-com | dropbox | linkedin | yahoo | a
 MODEL_PATH="honeygen_models/model_trained_on_${DATASET}_500_epochs.bin"
 
 K=20
-L=4                           # KNN base words; K must be divisible by L
+L=10                           # KNN base words; K must be divisible by L
 SEED=67
 T1=20
 T2=61
@@ -76,6 +76,8 @@ CMD=(
     --seed "$SEED"
     --t1 "$T1"
     --cache-dir "$CACHE_DIR"
+    --success-number
+
 )
 
 if [[ -n "$T2" ]]; then

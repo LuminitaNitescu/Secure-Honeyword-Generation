@@ -52,37 +52,21 @@ def flatness_curve(flatness_graph: List[int], k: int) -> List[float]:
 
 
 def success_number_points(
-    attack_stats: dict,
+    success_stats: dict,
 ) -> Optional[Tuple[List[int], List[int]]]:
     """Raw success-number campaign: (failed logins, successful logins) pairs.
 
     This is the population-wide curve produced by the global guessing attack:
     x = total honeyword logins (alarms raised), y = total real-password logins.
     """
-    if not attack_stats:
+    if not success_stats:
         return None
-    curve = attack_stats.get("success_curve")
+    curve = success_stats.get("success_curve")
     if not curve:
         return None
     failures = [int(pt[0]) for pt in curve]
     successes = [int(pt[1]) for pt in curve]
     return failures, successes
-
-
-def normalize_success_points(
-    points: Tuple[List[int], List[int]], total_users: int
-) -> Tuple[List[float], List[float]]:
-    """Normalise both axes by the user count so unequal-N methods are comparable.
-
-    x -> failed logins per account, y -> fraction of accounts compromised.
-    """
-    failures, successes = points
-    if total_users <= 0:
-        return [], []
-    return (
-        [f / total_users for f in failures],
-        [s / total_users for s in successes],
-    )
 
 
 def linear_baseline(k: int) -> List[float]:
@@ -100,18 +84,16 @@ def load_folder_data(folder: Path, k: int) -> Dict[str, dict]:
     for path in sorted(folder.glob("*.json")):
         data = load_json(path)
         flat_list: List[int] = data.get("flatness_graph", [])
-        attack_stats: dict = data.get("attack_stats", {})
-        total_users: int = attack_stats.get("total_users", len(flat_list))
-        succ_points = success_number_points(attack_stats)
+        # "success_number" holds the full campaign that runs until every user is
+        # cracked; "attack_stats" is a truncated campaign and only used as a
+        # fallback for older JSONs that predate the success_number field.
+        success_stats: dict = data.get("success_number") or data.get("attack_stats", {})
+        total_users: int = success_stats.get("total_users", len(flat_list))
+        succ_points = success_number_points(success_stats)
 
         results[path.stem] = {
             "flatness_curve": flatness_curve(flat_list, k) if flat_list else None,
             "success_points": succ_points,
-            "success_points_norm": (
-                normalize_success_points(succ_points, total_users)
-                if succ_points
-                else None
-            ),
             "total_users": total_users,
             "epsilon_flatness": data.get("epsilon_flatness"),
             "attack_success_rate": data.get("attack_success_rate"),
@@ -300,14 +282,14 @@ def main() -> None:
         )
 
         valid_flat = [m["flatness_curve"] for m in data.values() if m["flatness_curve"] is not None]
-        valid_succ_norm = [m["success_points_norm"] for m in data.values() if m["success_points_norm"]]
+        valid_succ = [m["success_points"] for m in data.values() if m["success_points"]]
         valid_eps = [m["epsilon_flatness"] for m in data.values() if m["epsilon_flatness"] is not None]
         valid_asr = [m["attack_success_rate"] for m in data.values() if m["attack_success_rate"] is not None]
 
         per_folder_avg[folder_name] = {
             "flatness_curve": mean_of_curves(valid_flat),
-            # Normalised per account so methods with different N are comparable.
-            "success_curve": mean_success_curve(valid_succ_norm),
+            # Raw failed/successful login counts, averaged across datasets per method.
+            "success_curve": mean_success_curve(valid_succ),
             "epsilon_flatness": float(np.mean(valid_eps)) if valid_eps else None,
             "attack_success_rate": float(np.mean(valid_asr)) if valid_asr else None,
         }
@@ -329,14 +311,12 @@ def main() -> None:
         baseline=baseline,
     )
 
-    # Mean success-number graph: one line per folder (normalised per account).
+    # Mean success-number graph: one line per folder (raw counts, averaged across datasets).
     plot_success_number(
         {name: stats["success_curve"] for name, stats in per_folder_avg.items()},
         title="Mean Success-Number Graph (averaged across datasets per method)",
         out_path=out_dir / "mean_success_number.png",
         k=k,
-        xlabel="Failed logins per account (alarms raised)",
-        ylabel="Fraction of accounts compromised",
     )
 
     # LaTeX table

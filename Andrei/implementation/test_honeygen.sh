@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Tweakable parameters
 VENV="$PWD/.venv"
-DATASET="youku"   # chegg-com | dropbox | linkedin | yahoo | rockyou | dubsmash-com | youku
+DATASET="dubsmash-com"   # chegg-com | dropbox | linkedin | yahoo | rockyou | dubsmash-com | youku
 TARGET_DATASET="data/50k_subsample/${DATASET}_sorted_preprocessed.txt"
 # "data/50k_subsample/rockyou_sorted_preprocessed.txt"
 # "data/50k_subsample/dropbox_sorted_preprocessed.txt"
