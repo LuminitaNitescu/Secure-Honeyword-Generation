@@ -12,9 +12,9 @@ import random
 import multiprocessing
 
 
-_chars = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
-            '\x08', '\x0b', '\x0c', '\x0e', '\x0f', '\x10', '\x11', '\x12', 
-            '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19']
+_chars = ['\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x00', 
+        '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
+        '\x08', '\x0b', '\x0c', '\x17', '\x0e', '\x0f', '\x18', '\x19']
 
 _worker_model = None
 
@@ -66,7 +66,6 @@ def _generate_for_single_password(args):
 class MarkovModel():
     
     def __init__(self, path=None):
-        self.data = None
         
         if path:
             with open(path, 'rb') as f:
@@ -110,13 +109,12 @@ class MarkovModel():
         return chain, starts
 
     def load_data(self, data):
-        self.data = data
         
         with Pool() as pool:
             results = list(
                 tqdm(
-                    pool.imap(self._process_password, self.data),
-                    total=len(self.data),
+                    pool.imap(self._process_password, data),
+                    total=len(data),
                     desc="Markov model training: Password processing."
                 )
             )
@@ -183,38 +181,31 @@ class MarkovModel():
 
         return math.exp(log_p)
     
-    def generate(self, k: int, queries: list[UserData]=None, seed: int=None):
+    def generate(self, k: int, queries: list[UserData], seed: int):
         
-        # res = []
+        res = []
         
-        # tasks = [
-        #     (idx, query, k, seed + idx)
-        #     for idx, query in enumerate(queries)
-        # ]
+        tasks = [
+            (idx, query, k, seed + idx)
+            for idx, query in enumerate(queries)
+        ]
 
-        # with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
-        #     results = tqdm(
-        #         pool.imap(_generate_for_single_password, tasks, chunksize=32),
-        #         total=len(tasks),
-        #         desc="Generating Honeywords"
-        #     )
-            
-        #     for honeyword_run in results:
-        #         res.append(honeyword_run)
-        
-        res = tqdm(
-                [
-                    _generate_for_single_password((idx, query, k, seed + idx))
-                    for idx, query in enumerate(queries) 
-                ],
-                total=len(queries),
+        with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
+            results = tqdm(
+                pool.imap(_generate_for_single_password, tasks),
+                total=len(tasks),
                 desc="Generating Honeywords"
             )
+            
+            for honeyword_run in results:
+                res.append(honeyword_run)
                
         return res
 
 
-def _process_password(i):
+def _process_password(args):
+    
+    idx, i = args
             
     chain  = defaultdict(list)
     starts = []
@@ -261,6 +252,7 @@ def _process_password(i):
     
     if len(pw) < 4:
         starts.append(pw)
+        chain[tuple(pw)].append('\n')
     else:
         pw += '\n'
         starts.append(pw[:4])
@@ -363,7 +355,6 @@ def _generate_for_single_password_targeted(args):
 class TargetedMarkovModel():
     
     def __init__(self, path=None):
-        self.data = None
         
         if path:
             with open(path, 'rb') as f:
@@ -385,8 +376,7 @@ class TargetedMarkovModel():
         
         self.start_preprocessed = (list(self.starts.keys()), list(self.starts.values()))
         
-    def load_data(self, data):
-        self.data = data 
+    def load_data(self, data): 
                 
         tasks = [
             (idx, entry)
@@ -502,14 +492,15 @@ class TargetedMarkovModel():
 
         return math.exp(log_p) 
      
-    def generate(self, k: int, queries: list[UserData]=None, seed: int=None, structures: dict[str, list[list[str]]] = None, replacement: bool = False):
+    def generate(self, k: int, queries: list[UserData], seed: int, structures: dict[str, list[list[str]]], replacement: bool = False):
         
         res = []
         
-        tasks = [
-            (idx, query, structures[query.password][0], k, seed + idx, replacement)
-            for idx, query in enumerate(queries)
-        ]
+        tasks = []
+        for idx, query in enumerate(queries):
+            structure = structures.get(query.password)
+            if structure:
+                tasks.append((idx, query, structure[1], k, seed + idx, replacement))
 
         with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
             results = tqdm(

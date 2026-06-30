@@ -312,7 +312,7 @@ def generate(k, rule_name, queries: list=None, seed: int=None, mode="honeywords"
     }  
        
     ##--Print out banner
-    print_banner(management_vars['program_details'])
+    # print_banner(management_vars['program_details'])
    
     ##--Specify where the rule file is located
     rule_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)),'Rules', 

@@ -9,9 +9,9 @@ import os
 import pickle
 
 
-_chars = ['\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
-            '\x08', '\x0b', '\x0c', '\x0e', '\x0f', '\x10', '\x11', '\x12', 
-            '\x13', '\x14', '\x15', '\x16', '\x17', '\x18', '\x19']
+_chars = ['\x10', '\x11', '\x12', '\x13', '\x14', '\x15', '\x16', '\x00', 
+        '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', 
+        '\x08', '\x0b', '\x0c', '\x17', '\x0e', '\x0f', '\x18', '\x19']
 
 _worker_model = None
 
@@ -46,27 +46,32 @@ class ListModel():
     def load_data(self, data):
         self.data = data
         self.size = len(data)
-        self.counts = Counter(data)
+        self.counts = Counter([x[0] for x in data])
     
     def generate(self, k: int, queries: list[UserData]=None, seed: int=None):
         
         res = []
         
-        tasks = [
-            (idx, query, k, seed + idx)
-            for idx, query in enumerate(queries)
-        ]
+        # tasks = [
+        #     (idx, query, k, seed + idx)
+        #     for idx, query in enumerate(queries)
+        # ]
 
-        with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
-            results = tqdm(
-                pool.imap(_generate_for_single_password, tasks),
-                total=len(tasks),
-                desc="Generating Honeywords"
-            )
+        # with multiprocessing.Pool(initializer=_init_worker, initargs=(self,)) as pool:
+        #     results = tqdm(
+        #         pool.imap(_generate_for_single_password, tasks),
+        #         total=len(tasks),
+        #         desc="Generating Honeywords"
+        #     )
             
-            for honeyword_run in results:
-                res.append(honeyword_run)
-               
+        #     for honeyword_run in results:
+        #         res.append(honeyword_run)
+        
+        _init_worker(self)
+        for idx, query in tqdm(enumerate(queries), total=len(queries), desc="Generating Honeywords"):
+            output = _generate_for_single_password((idx, query, k, seed + idx))
+            res.append(output) 
+        
         return res
 
 
@@ -74,14 +79,14 @@ def _process_password(args):
     
     idx, i = args
     
-    pw = i[0]
-    fn = i[3]
-    ln = i[4]
-    bd = i[5][0:2]
-    bm = i[5][2:4]
-    by = i[5][4:8]
-    un = i[2]
-    em = i[1].split("@")[0]
+    pw = i.password
+    fn = i.first_name
+    ln = i.last_name
+    bd = i.birthday[0:2]
+    bm = i.birthday[2:4]
+    by = i.birthday[4:8]
+    un = i.username
+    em = i.email.split("@")[0]
     
     tags = dict()
     tags[_chars[0]] = f"{fn}{ln}"
@@ -160,20 +165,26 @@ def _generate_for_single_password_targeted(args):
             tags[_chars[22]] = regex.group(2)
     
     pw_processed = _process_password((0, query))
-    res = [[pw_processed, _worker_model.counts.get(pw_processed, 0) / _worker_model.size]]
-    honeywords = [pw_processed]
+    pw_prob = _worker_model.counts.get(pw_processed, 0) / _worker_model.size
+    
+    if replacement:
+        res = [[query.password, pw_prob]]
+        honeywords = [query.password]
+    else:
+        res = [[pw_processed, pw_prob]]
+        honeywords = [pw_processed]
     
     while len(res) < k:
         
         hw = rng.choice(_worker_model.data)
         
-        if len(hw[0]) >= 1 and hw not in honeywords:
+        if len(hw) >= 1 and hw not in honeywords:
             
             if replacement:
-                hw_final = tokenize_password(hw[0], tags)
+                hw_final = "".join([tags.get(x, x) for x in hw])
             else:
-                hw_final = hw[0]
-            res.append([hw_final, _worker_model.counts[hw[0]] / _worker_model.size])
+                hw_final = hw
+            res.append([hw_final, _worker_model.counts[hw] / _worker_model.size])
             honeywords.append(hw_final)
         
     rng.shuffle(res)
@@ -192,13 +203,6 @@ class TargetedListModel():
             self.counts = model['counts']
         else:
             self.data = None
-            
-    def print(self):
-        
-        with open(r"C:\Users\ctamv\Documents\CS\CS4710\Secure-Honeyword-Generation\Christos\data\synthetic_test_tokenized.txt", "w", encoding="utf-8") as f1:
-            f1.write("\n".join(self.data) + "\n")
-            
-        return self.data
     
     def load_data(self, data):
 
@@ -231,7 +235,7 @@ class TargetedListModel():
         res = []
         
         tasks = [
-            (idx, query, k, seed + idx)
+            (idx, query, k, seed + idx, replacement)
             for idx, query in enumerate(queries)
         ]
 

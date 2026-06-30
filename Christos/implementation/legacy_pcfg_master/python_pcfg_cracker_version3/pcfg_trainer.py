@@ -367,15 +367,15 @@ def train(data, smoothing = 0.01, coverage = 1.0, rule_name = "Default", targete
         'Contact':'cweir@vt.edu'
     }
     
-    print_banner()
+    # print_banner()
         
     ##--Now the real work starts--
     print()
     print("Done processing the input training file")
     print("Starting to analyzing the input passwords")
     print("Passwords left to parse : " + str(len(data)))
-    if len(data) > 10000000:
-        print("DevNote: Most of my training has been with sets of 1 million passwords. I'm not sure how things will scale with bigger datasets so if problems occur please submit a bug report on the github repo and then try training on a smaller sample size")
+    # if len(data) > 10000000:
+    #     print("DevNote: Most of my training has been with sets of 1 million passwords. I'm not sure how things will scale with bigger datasets so if problems occur please submit a bug report on the github repo and then try training on a smaller sample size")
     print()
     print("Current Status:") 
         

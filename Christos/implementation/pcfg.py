@@ -17,7 +17,7 @@ class PCFGModel():
             train(data=data, rule_name=rule_name)
         self.rule_name = rule_name
      
-    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, list[list[str]]]=None):
+    def generate(self, k: int, queries: list[UserData], seed: int, structures: dict[str, list[list[str]]], mode:str="honeywords"):
         
         if mode == "honeywords":
             queries_processed = []
@@ -31,7 +31,7 @@ class PCFGModel():
                 queries_processed.append([pw, structures[pw], None])
                 passwords_processed.append(pw)
             
-            return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed), passwords_processed
+            return generate(queries=queries_processed, k=k, rule_name=self.rule_name, seed=seed)
         else:
             return generate(k=k, rule_name=self.rule_name, mode="passwords")
     
@@ -47,7 +47,7 @@ class TargetedPCFGModel():
             train(data=data, rule_name=rule_name, targeted=True)
         self.rule_name = rule_name
      
-    def generate(self, k: int, mode:str="honeywords", queries: list[UserData]=None, seed: int=None, structures: dict[str, list[list[str]]] = None, replacement: bool = False):
+    def generate(self, k: int, queries: list[UserData], seed: int, structures: dict[str, list[list[str]]], mode:str="honeywords", replacement: bool = False):
         
         queries_processed = []
         for query in queries:
