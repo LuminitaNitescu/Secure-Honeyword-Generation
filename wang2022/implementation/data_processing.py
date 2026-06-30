@@ -20,8 +20,7 @@ from tqdm import tqdm
 import os
 
 
-# Returns a random control-char marker representing a birthdate substring.
-# by: birth year, bm: birth month, bd: birth day (unused, kept for call-site compatibility)
+# Returns special PII tag char representing a birthdate substring.
 def get_random_birthdate_choice(by: str, bm: str, bd: str) -> str:
 
     # choices_bd = [
@@ -51,9 +50,7 @@ def get_random_birthdate_choice(by: str, bm: str, bd: str) -> str:
     return random.choice(choices_bd)
 
 
-# --- Case 1: Username Split ---
-# Returns a random control-char marker representing a username substring.
-# un: username (unused, kept for call-site compatibility)
+# Returns special PII tag char representing a username substring.
 def get_random_username_choice(un: str) -> str:
 
     # regex = re.search(r"([a-zA-Z]+)(\d+)", un)
@@ -66,9 +63,7 @@ def get_random_username_choice(un: str) -> str:
     return random.choice(choices)
 
 
-# --- Case 2: Name Variations ---
-# Returns a random control-char marker representing a name variation.
-# fn: first name, ln: last name (unused, kept for call-site compatibility)
+# Returns special PII tag char representing a name variation.
 def get_random_name_choice(fn: str, ln: str) -> str:
 
     # choices = [
@@ -92,9 +87,7 @@ def get_random_name_choice(fn: str, ln: str) -> str:
     return random.choice(choices)
 
 
-# --- Case 3: Email Split ---
-# Returns a random control-char marker representing an email substring.
-# em: email local-part (unused, kept for call-site compatibility)
+# Returns special PII tag char representing an email substring.
 def get_random_email_choice(em: str) -> str:
 
     # regex = re.search(r"([a-zA-Z]+)(\d+)", em)
@@ -113,8 +106,6 @@ _cases_keys = None
 _cases_values = None
 
 
-# Pool initializer: seeds RNG per-process and stashes shared Mimesis providers/case weights in globals.
-# cases_keys: list of case ids, cases_values: matching weights for random.choices
 def _init_worker(cases_keys, cases_values):
     global _person, _datetime_provider, _cases_keys, _cases_values
     from mimesis import Person, Datetime
@@ -127,7 +118,6 @@ def _init_worker(cases_keys, cases_values):
 
 
 # Worker function: injects a synthetic PII fragment into a single password.
-# pw: the source password to mutate
 def _process_row(pw):
     person = _person
     datetime_provider = _datetime_provider
@@ -182,7 +172,6 @@ def _process_row(pw):
 
 
 # Builds a synthetic targeted-password dataset by pairing rockyou passwords with generated PII, then splits into train/test CSVs.
-# input_path: source password list file, output_ts_path: test CSV destination, output_tr_path: train CSV destination
 def gen_synthetic_data(input_path, output_ts_path, output_tr_path):
     passwords = []
     with open(input_path, "r", encoding="utf-8") as f:
@@ -303,7 +292,6 @@ def gen_synthetic_data(input_path, output_ts_path, output_tr_path):
 
 
 # Expands a hashmob count file into a weighted password list, injects synthetic PII in parallel, and writes results + counts.
-# input_path: "password:count" file, output_pickle_path: pickled results destination, output_counts_path: sorted counts destination, total_rows: max passwords to expand
 def gen_synthetic_data_attacker(input_path, output_pickle_path, output_counts_path, total_rows=100_000_000):
     passwords = []
     for line in open(input_path, "r", encoding="utf-8", errors='ignore'):
@@ -361,8 +349,7 @@ def gen_synthetic_data_attacker(input_path, output_pickle_path, output_counts_pa
     print(f"Finished!")
 
 
-# Legacy variant: pairs each password with freshly generated PII (no injection into the password) and writes a single CSV.
-# input_path: source password list file, output_path: destination CSV
+# Deprecated
 def gen_synthetic_data_old(input_path, output_path):
     passwords = []
     with open(input_path, "r", encoding="utf-8") as f:
@@ -410,7 +397,6 @@ def gen_synthetic_data_old(input_path, output_path):
 
 
 # Computes the relative frequency of each password length and writes it as JSON.
-# input_path: source password list file, output_path: destination JSON file
 def get_password_lengths(input_path, output_path):
     size = 0
     lengths = []
@@ -428,7 +414,6 @@ def get_password_lengths(input_path, output_path):
 
 
 # Strips non-ASCII characters from a password list, shuffles it, and writes the full set plus a train/test split.
-# input_path: source password list file, output_all_path: shuffled full-set destination, output_tr_path: train split destination, output_ts_path: test split destination
 def ascii_conversion_and_split(input_path, output_all_path, output_tr_path, output_ts_path):
     data = []
     with open(input_path, "r", encoding="utf-8") as f:
@@ -459,7 +444,6 @@ def ascii_conversion_and_split(input_path, output_all_path, output_tr_path, outp
 
 
 # Tallies password frequencies from a plain password list and writes them sorted as "password:count" lines.
-# input_path: source password list file, output_path: destination counts file
 def data_to_counts_attacker_model(input_path, output_path):
     data = []
     with open(input_path, "r", encoding="utf-8") as f:
@@ -480,7 +464,6 @@ def data_to_counts_attacker_model(input_path, output_path):
 
 
 # Finds and prints the count of passwords that appear in both a test file and a train file.
-# test_path: test password list file, train_path: train password list file
 def find_intersection(test_path, train_path):
     test = []
     with open(test_path, "r", encoding="utf-8") as f:
@@ -506,8 +489,7 @@ def find_intersection(test_path, train_path):
     print(len(result))
 
 
-# Expands a "count password" file into a flat, shuffled, ASCII-only password list and writes it to disk.
-# input_path: source "count password" file, output_path: destination flat password list file
+# Expands a password count file into shuffled ASCII-only password list and saves to disk.
 def counts_to_raw(input_path, output_path):
     items = []
     i = 0
@@ -526,7 +508,6 @@ def counts_to_raw(input_path, output_path):
     open(output_path, 'w').write('\n'.join(items))
 
 
-# Entry point; wire up calls to the functions above with the desired file paths.
 def main() -> None:
     pass
 
