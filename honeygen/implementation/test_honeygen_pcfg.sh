@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$SCRIPT_DIR/.venv"
 
-C_IMPL="$(cd "$SCRIPT_DIR/../../Christos/implementation" && pwd)"
+C_IMPL="$(cd "$SCRIPT_DIR/../../wang2022/implementation" && pwd)"
 
 PCFG_RULES_BASE="$C_IMPL/legacy_pcfg_master/python_pcfg_cracker_version3/Rules"
 

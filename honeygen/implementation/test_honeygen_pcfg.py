@@ -8,10 +8,10 @@ from pathlib import Path
 import random
 from typing import Iterable, List, Optional
 
-# Make Christos's implementation importable.
-_CHRISTOS_PATH = str(Path(__file__).resolve().parent.parent.parent / "Christos" / "implementation")
-if _CHRISTOS_PATH not in sys.path:
-    sys.path.insert(0, _CHRISTOS_PATH)
+# Make wang2022's implementation importable.
+_WANG_PATH = str(Path(__file__).resolve().parent.parent.parent / "wang2022" / "implementation")
+if _WANG_PATH not in sys.path:
+    sys.path.insert(0, _WANG_PATH)
 
 from attackers.normalized_top_pw import SweetwordList
 from attackers.normalized_top_pw_hg import NormalizedTopPWModelHG
