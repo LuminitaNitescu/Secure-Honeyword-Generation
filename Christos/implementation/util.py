@@ -1,5 +1,8 @@
 import ahocorasick
 
+from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.training_data import TrainingData
+from legacy_pcfg_master.python_pcfg_cracker_version3.pcfg_trainer_logic.ret_types import RetType
+
 
 tags = {
             "N1": '\x10', 
@@ -75,3 +78,20 @@ def special_char_converter(password_segmented: list[str]):
         res.append(tags.get(seg, seg))
         
     return res
+
+def get_structures(data, targeted=False):
+    
+    print("Calculating password structures:") 
+        
+    training_results = TrainingData(targeted)
+        
+    for i, password in enumerate(data):
+        
+        ret_value = training_results.parse(password)
+        if ret_value != RetType.STATUS_OK:
+            continue
+        
+        if (i + 1) % 10_000 == 0:
+            print(f"Progress: {i + 1:,} items processed.")
+        
+    return training_results.structure_dict
